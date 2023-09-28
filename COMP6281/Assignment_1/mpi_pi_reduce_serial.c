@@ -16,6 +16,7 @@
 #include "mpi.h"
 #include <stdio.h>
 #include <stdlib.h>
+#include <time.h>
 
 void srandom (unsigned seed);
 double dboard (int darts);
@@ -28,7 +29,10 @@ int main (int argc, char *argv[])
 double	homepi,         /* value of pi calculated by current task */
 	pisum,	        /* sum of tasks' pi values */
 	pi,	        /* average of pi after "darts" is thrown */
-	avepi;	        /* average pi value for all iterations */
+	avepi,	        /* average pi value for all iterations */
+   startTime,
+   endTime,
+   elapsedTime;
 int	taskid,	        /* task ID - also used as seed number */
 	numtasks,       /* number of tasks */
 	rc,             /* return code */
@@ -39,7 +43,8 @@ int	taskid,	        /* task ID - also used as seed number */
 // MPI_Init(&argc,&argv);
 // MPI_Comm_size(MPI_COMM_WORLD,&numtasks);
 // MPI_Comm_rank(MPI_COMM_WORLD,&taskid);
-printf ("Task %d has started...\n", taskid);
+
+startTime = clock();
 
 /* Set seed for random number generator equal to task ID */
 srandom (taskid);
@@ -66,12 +71,15 @@ for (i = 0; i < ROUNDS; i++) {
                    MASTER, MPI_COMM_WORLD);
    */
    /* Master computes average for this iteration and all iterations */
-   avepi = ((avepi * i) + homepi)/(i + 1); 
-   printf("   After %8d throws, average value of pi = %10.8f\n",
-            (DARTS * (i + 1)),avepi);   
+   avepi = ((avepi * i) + homepi)/(i + 1);  
 } 
-if (taskid == MASTER) 
-   printf ("\nReal value of PI: 3.1415926535897 \n");
+printf("   After %8d throws, average value of pi = %10.8f\n",
+            (DARTS * (i + 1)),avepi);  
+printf ("\nReal value of PI: 3.1415926535897 \n");
+
+endTime = clock();
+elapsedTime = ((double)(endTime - startTime)) / CLOCKS_PER_SEC;
+printf("Elapsed time =  %f seconds.\n",elapsedTime);	
 
 //MPI_Finalize();
 return 0;
