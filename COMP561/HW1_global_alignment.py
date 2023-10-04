@@ -85,7 +85,7 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("-A", help="sequence A", type=str)
     parser.add_argument("-B", help="sequence B", type=str)
-    parser.add_argument("-fasta", help="sequence B", type=str)
+    parser.add_argument("-fasta", help="file", type=str)
     parser.add_argument(
         "-match",
         help="score for match, signless",
@@ -105,7 +105,7 @@ if __name__ == "__main__":
         "-gap_noslip",
         help="score for gap, non-slip",
         type=lambda x: abs(int(x)),
-        default=1,
+        default=2,
     )
     args = parser.parse_args()
 

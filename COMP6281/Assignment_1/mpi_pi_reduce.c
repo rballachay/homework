@@ -16,6 +16,7 @@
 #include "mpi.h"
 #include <stdio.h>
 #include <stdlib.h>
+#include <math.h>
 
 void srandom (unsigned seed);
 double dboard (int darts);
@@ -32,7 +33,8 @@ double	homepi,         /* value of pi calculated by current task */
 int	taskid,	        /* task ID - also used as seed number */
 	numtasks,       /* number of tasks */
 	rc,             /* return code */
-	i;
+	i,
+   roundsReal;
 MPI_Status status;
 
 /* Obtain number of tasks and task ID */
@@ -44,8 +46,9 @@ printf ("MPI task %d has started...\n", taskid);
 /* Set seed for random number generator equal to task ID */
 srandom (taskid);
 
+roundsReal = ceil(ROUNDS/numtasks);
 avepi = 0;
-for (i = 0; i < ROUNDS; i++) {
+for (i = 0; i < roundsReal; i++) {
    /* All tasks calculate pi using dartboard algorithm */
    homepi = dboard(DARTS);
    //printf("   I am taskid %i, with i=%i \n", taskid, i);
@@ -69,7 +72,7 @@ for (i = 0; i < ROUNDS; i++) {
       pi = pisum/numtasks;
       avepi = ((avepi * i) + pi)/(i + 1); 
       printf("   After %8d throws, average value of pi = %10.8f\n",
-              (DARTS * (i + 1)),avepi);
+              (DARTS * (i + 1)*numtasks),avepi);
    }    
 } 
 if (taskid == MASTER) 
