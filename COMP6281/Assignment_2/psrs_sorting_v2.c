@@ -25,10 +25,8 @@ int partitionQuicksort(int arr[], int low, int high) {
 }  
 
 void quickSort(int arr[], int low, int high) {  
-    int pi;
     if (low < high) {  
-        //printf("iterate");
-        pi = partitionQuicksort(arr, low, high);  
+        int pi = partitionQuicksort(arr, low, high);  
         quickSort(arr, low, pi - 1);  
         quickSort(arr, pi + 1, high);  
     }  
@@ -110,7 +108,7 @@ int main(int argc, char* argv[])
     int *resultSize = NULL;
 
     // set max, min numnber in random number generator + size of array to sort
-    int size = (int)pow(2, 20);
+    int size = (int)pow(2,18);
     int *arr = NULL;
 
     MPI_Comm childComm;
@@ -124,7 +122,7 @@ int main(int argc, char* argv[])
 
     MPI_Comm_rank(MPI_COMM_WORLD, &processId);
 
-    int shard = (int)size/numParents;
+    int shard = size/numParents;
     int pivots[numParents-1];
 
     // local array needs to be dynamic - not guaranteed to be this value
@@ -181,10 +179,11 @@ int main(int argc, char* argv[])
     timeEnd = MPI_Wtime() - timeStart;
     //printf("Finished quicksort of local array, time elapsed = %f\n", timeEnd);
 
-    int *localSamples = NULL;
-    localSamples = (int *)malloc(numParents * sizeof(int));
+    //MPI_Finalize();
+    //return 0;
+    int localSamples[numParents];
     for (i=0;i<numParents;i++){
-        int idx = (int)i*size/pow(numParents,2);
+        int idx = i*size/pow(numParents,2);
         //printf("%d,",idx);
         localSamples[i] = localA[idx];
     }
@@ -208,7 +207,6 @@ int main(int argc, char* argv[])
     }
 
     MPI_Gatherv(localSamples, numParents, MPI_INT, globalSamples, recvSize, disPlace, MPI_INT, 0, MPI_COMM_WORLD);
-    free(localSamples);
 
     if (processId==0){
         quickSort(globalSamples,0,nSamples-1);
@@ -254,102 +252,68 @@ int main(int argc, char* argv[])
     //    printf("\n");
     //}
 
-    //MPI_Barrier(MPI_COMM_WORLD);
-
-    // define the local lengths that will be used for gatherv
+    // define the local lengths that will be used for gatherv. the recv buffer shows the length 
+    // of each array in the sub array next to each partition
     int recvBuffer[numParents*numParents];
     MPI_Allgather(arrLens, numParents, MPI_INT, recvBuffer, numParents, MPI_INT, MPI_COMM_WORLD);
 
-    //if (processId==0){
-    //    printf("All array lengths, broadcast to all threads:");
-    //    for (i=0;i<numParents*numParents;i++){
-    //        printf("%d,",recvBuffer[i]);
-    //    }
-    //    printf("\n");
-    //}
+    if (processId==-1){
+        printf("All array lengths, broadcast to all threads:");
+        for (i=0;i<numParents*numParents;i++){
+            printf("%d,",recvBuffer[i]);
+        }
+        printf("\n");
+    }
     //printf("\n");
-    int *localGatherV = NULL;
-    int *localCounts = NULL;
-    int *localDisplace = NULL;
-    int *sendArray = NULL;
-    int startIdx;
+    // send the local array to all other arrays
 
-    //printf("process %d, arrLens = ", processId);
-    //for (j=0;j<numParents;j++){
-    //    printf("len = %d, bound=%d, ", arrLens[j],arrBounds[j]);
-    //}
-    //printf("\n");
+    int globalRecvArr[size];
+    int allShards[numParents];
+    int allShardDisplace[numParents];
 
-    for (i=0;i<numParents;i++){
-        if (processId==i){    
-            int count=0; 
-            localCounts = (int *)malloc(numParents * sizeof(int)); 
-            localDisplace = (int *)malloc(numParents * sizeof(int));   
-            localDisplace[0]=0;
-            localCounts[0] = recvBuffer[i];
-            count+=recvBuffer[i];
-            //printf("Local count: %d, local displace %d, process %d\n", localCounts[0], localDisplace[0], processId);
-            for (j=1;j<numParents;j++){
-                localCounts[j] = recvBuffer[j*numParents+i];
-                localDisplace[j] = localDisplace[j-1] + localCounts[j-1];
-                count+=recvBuffer[j*numParents+i];
-                //printf("Local count: %d, local displace %d, process %d\n", localCounts[j], localDisplace[j], processId);
+    allShards[0] = shard;
+    allShardDisplace[0] = 0;
+    for (i=1; i<numParents; i++){
+        allShards[i] = shard;
+        allShardDisplace[i] = allShardDisplace[i-1] + allShards[i-1];
+    }
+    MPI_Allgatherv(localA, shard, MPI_INT, globalRecvArr, allShards, allShardDisplace, MPI_INT, MPI_COMM_WORLD);
+    MPI_Barrier(MPI_COMM_WORLD);
+    int localShards[numParents];
+    int totalLocal = 0;
+    int localDisplace[numParents*numParents];
+    localDisplace[0] = 0;
+    for (i=0; i<numParents; i++){
+        for (j=0; j<numParents; j++){
+            if (i+j==0){
+                continue;
             }
-
-            localGatherV = (int*)malloc(count * sizeof(int));
+            localDisplace[(i*numParents)+j] = localDisplace[(i*numParents)+j-1]+recvBuffer[(i*numParents)+j-1];
         }
-        //for (j=0;j<numParents;j++){
-        //    printf("%d", arrLens[j]);
-        //}
-
-        sendArray = (int*)malloc(arrLens[i] * sizeof(int));
-
-        if (i==0){
-            startIdx=0;
-        }else{
-            startIdx=arrBounds[i-1];
-        }
-        //printf("startIdx=%d", startIdx);
-        for (j=0;j<arrLens[i];j++){
-            sendArray[j]=localA[startIdx+j];
-            //printf("%d,", sendArray[j]);
-        }
-        //if (processId==0){
-        //    printf("I am process 0, sending to process %d, the following array, starting at bounds %d: ", i, startIdx);
-        //    for (j=0;j<arrLens[i];j++){
-                //sendArray[j] = localA[arrBounds[i-1]+j];
-        //        printf("%d,", sendArray[j]);
-        //    }
-        //}
-        //printf("\n");
-
-        if (processId==i){
-            MPI_Gatherv(sendArray,arrLens[i],MPI_INT,localGatherV,localCounts,localDisplace,MPI_INT,i,MPI_COMM_WORLD);
-        }else{
-            MPI_Gatherv(sendArray,arrLens[i],MPI_INT,NULL,NULL,NULL,MPI_INT,i,MPI_COMM_WORLD);
+        localShards[i] = recvBuffer[i*numParents + processId];
+        totalLocal += localShards[i];
+    }
+    if (processId==-1){
+        for (i=0;i<numParents*numParents;i++){
+            printf("%d,", localDisplace[i]);
         }
     }
-    free(sendArray);
-    free(localA);
 
-    if (processId==0){
-        //free(globalSamples);
-        free(recvSize);
-        free(disPlace);
+    int finalLocalArr[totalLocal];
+    int total=0;
+    for (i=0; i<numParents; i++){
+        int start = localDisplace[i*numParents+processId];
+        int stop = start + localShards[i];
+        for (j=start; j<stop; j++){
+            finalLocalArr[total] = globalRecvArr[j];
+            total++;
+        }
     }
+    // this is the bottleneck. we gotta speed this up!!
+    quickSort(finalLocalArr, 0, total-1);
 
-    int totalCount = 0;
-    for (j=0;j<numParents;j++){
-        totalCount+=localCounts[j];
-    }
-    //printf("Total count going in to final quicksort is: %d (process %d)\n", totalCount, processId);
     
-    timeStart = MPI_Wtime();
-    quickSort(localGatherV, 0, totalCount-1);
-    timeEnd = MPI_Wtime() - timeStart;
-
-    //printf("Finished quicksort of local array, time elapsed = %f, len %d\n", timeEnd,totalCount);
-
+    //MPI_Barrier(MPI_COMM_WORLD);
     int *sortedArr = NULL;
     int *finalArrLens = NULL;
     int *finalDisplace = NULL;
@@ -358,7 +322,7 @@ int main(int argc, char* argv[])
         finalDisplace = (int*)malloc(numParents * sizeof(int));
     }
     
-    MPI_Gather(&totalCount,1,MPI_INT,finalArrLens,1,MPI_INT,0,MPI_COMM_WORLD);
+    MPI_Gather(&totalLocal,1,MPI_INT,finalArrLens,1,MPI_INT,0,MPI_COMM_WORLD);
     
     if (processId==0){
         finalDisplace[0]=0;
@@ -368,32 +332,19 @@ int main(int argc, char* argv[])
         sortedArr = (int*)malloc(size * sizeof(int));
     }
 
-    MPI_Gatherv(localGatherV,totalCount,MPI_INT,sortedArr,finalArrLens,finalDisplace,MPI_INT,0,MPI_COMM_WORLD);
-    
-    
-    /*if (processId==0){
-        printf("FINAL ARRAY:\n");
-        for (i=0;i<size;i++){
-            printf("%d,",sortedArr[i]);
-        }
-        printf("\n");
-    }*/
-
-    //MPI_Barrier(MPI_COMM_WORLD);
-
+    MPI_Gatherv(finalLocalArr,totalLocal,MPI_INT,sortedArr,finalArrLens,finalDisplace,MPI_INT,0,MPI_COMM_WORLD);
+    //if (processId==0){
+    //    for (i=0;i<size;i++){
+    //        printf("%d,", sortedArr[i]);
+    //    }
+    //}
     endTime = MPI_Wtime ( ) - startTime;
 
     if ( processId == 0 )
     {
      printf("Elapsed time =  %f seconds.\n",endTime);	
     }
-
-    if (processId==0){
-        free(sortedArr);
-        free(finalArrLens);
-        free(finalDisplace);
-    }
-
+    
     MPI_Finalize();
     return 0;
 }

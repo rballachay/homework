@@ -95,9 +95,7 @@ int main(int argc, char* argv[])
     float endTime, startTime;
     
     // set max, min numnber in random number generator + size of array to sort
-    int maximum_number = (int)pow(2,16);
-    int minimum_number = 0;
-    int size = (int)pow(2,16);
+    int size = (int)pow(2, 20);
 
     MPI_Comm childComm;
     
@@ -127,7 +125,7 @@ int main(int argc, char* argv[])
       // the number of items we have in our list
       srand(0);
       for (i = 0; i < size; i++) {
-        arr[i] = rand() % (maximum_number + 1 - minimum_number) + minimum_number;
+        arr[i] = rand();
       }
 
       // Create an array of pointers to hold the chunks
@@ -147,12 +145,13 @@ int main(int argc, char* argv[])
       for (int i = 0; i < shard; i++) {
         localA[i] = result[0][i];
       }
+      free(arr);
     }else{
       MPI_Recv(localA, shard, MPI_INT, 0, 0, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
     }
 
     // put a barrier here so that we chunk the array before next step
-    MPI_Barrier(MPI_COMM_WORLD);
+    //MPI_Barrier(MPI_COMM_WORLD);
 
     /*printf("I am rank %d and here is my array:", processId);
     for (int i = 0; i < shard; i++) {
@@ -160,24 +159,26 @@ int main(int argc, char* argv[])
     }
     printf("\n");
     */
-
     int lenSubArr = shard;
+
     for (int i = 0; i < cubeDim; i++) {
 
       // pivot selection process, happens in first process of each partition
       partition = pow(2,(cubeDim-i));
+      //printf("The partition is %d\n", partition);
 
       color = processId/partition;
-      localRank = processId % partition;
+      int localRank;
 
       MPI_Comm partitionComm;
-      MPI_Comm_split(MPI_COMM_WORLD, color, 1, &partitionComm);
+      MPI_Comm_split(MPI_COMM_WORLD, color, 0, &partitionComm);
+
+      MPI_Comm_rank(partitionComm, &localRank);
 
       if (localRank == 0){
         pivot = selectPivot(localA, lenSubArr);
       }
 
-      // broadcast needs to be available globablly
       MPI_Bcast(&pivot, 1, MPI_INT, 0, partitionComm);
 
       // partition every array arround the local pivot
@@ -210,32 +211,41 @@ int main(int argc, char* argv[])
       int halfOrder = localRank%half;
       int recipient = (1-halfRank)*half+halfOrder;
 
-      //if (i==0){
-      //  printf("i am process %d, i have halfrank %d and halforder %d. I am sending to local process %d\n", processId, halfRank, halfOrder, recipient);
-      //}
+      if (i==-1){
+        printf("i am process %d, i have halfrank %d and halforder %d. I am sending to local process %d\n", processId, halfRank, halfOrder, recipient);
+      }
 
-      MPI_Status status;
+      int nRecv;
+
+      if (halfRank==1){
+        MPI_Send(&lenLower,1, MPI_INT, recipient, 0, partitionComm);
+      }else{
+        MPI_Recv(&nRecv, 1, MPI_INT, recipient, 0, partitionComm, MPI_STATUS_IGNORE);
+      }
+
+      if (halfRank==0){
+        MPI_Send(&lenUpper,1, MPI_INT, recipient, 0, partitionComm);
+      }else{
+        MPI_Recv(&nRecv, 1, MPI_INT, recipient, 0, partitionComm, MPI_STATUS_IGNORE);
+      }
+      //printf("I am process %d, I am going to recieve %d items\n", processId, nRecv);
+      MPI_Barrier(MPI_COMM_WORLD);
+
+      int recvArr[nRecv];
 
       if (halfRank==1){
         MPI_Send(lower, lenLower, MPI_INT, recipient, 0, partitionComm);
+        //printf("Finished sending from halfrank 1\n");
       }else{
+         MPI_Recv(&recvArr, nRecv, MPI_INT, recipient, 0, partitionComm, MPI_STATUS_IGNORE);
+      }
+
+      if (halfRank==0){
         MPI_Send(upper, lenUpper, MPI_INT, recipient, 0, partitionComm);
+        //printf("Finished sending from halfrank 1\n");
+      }else{
+         MPI_Recv(&recvArr, nRecv, MPI_INT, recipient, 0, partitionComm, MPI_STATUS_IGNORE);
       }
-
-      MPI_Probe(recipient, 0, partitionComm, &status);
-
-      // When probe returns, the status object has the size and other
-      // attributes of the incoming message. Get the size of the message.
-      int nRecv;
-      int recvArr[nRecv];
-      MPI_Get_count(&status, MPI_INT, &nRecv);
-      /*printf("here is the recieved array in process %d, len %d:   ", processId, nRecv);
-      for (j=0; j<nRecv; j++){
-        printf("%d,", recvArr[j]);
-      }
-      printf("\n");*/
-
-      MPI_Recv(&recvArr, nRecv, MPI_INT, recipient, 0, partitionComm, &status);
 
       if (halfRank==1){
         lenSubArr = lenUpper+nRecv;
@@ -259,6 +269,7 @@ int main(int argc, char* argv[])
           localA[j+lenLower] = recvArr[j];
         }
       }
+    MPI_Barrier(partitionComm);
     MPI_Comm_free(&partitionComm);
     }
 
@@ -312,7 +323,7 @@ int main(int argc, char* argv[])
 
     MPI_Gatherv(localA, lenSubArr, MPI_INT, finalArr, recvSize, disPlace, MPI_INT, 0, MPI_COMM_WORLD);
 
-    MPI_Barrier(MPI_COMM_WORLD);
+    //MPI_Barrier(MPI_COMM_WORLD);
     if (processId==0){
       //printf("The final array is as follows:\n");
       //for (i=0; i<size;i++){
