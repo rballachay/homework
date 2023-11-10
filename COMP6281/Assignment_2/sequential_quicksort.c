@@ -36,17 +36,13 @@ int main(int argc, char* argv[])
 {   
     int i;
     clock_t startTime, endTime;
-
-    // set max, min numnber in random number generator + size of array to sort
-    int maximum_number = (int)pow(2,16);;
-    int minimum_number = 0;
-    int size = (int)pow(2,16);;
+    int size = (int)pow(2,20);
     int arr[size];
 
     startTime = clock();
 
     for (i = 0; i < size; i++) {
-        arr[i] = rand() % (maximum_number + 1 - minimum_number) + minimum_number;
+        arr[i] = rand();
     }
 
     quickSort(arr, 0, size-1);
