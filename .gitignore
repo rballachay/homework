@@ -1,2 +1,3 @@
 *.vscode
 COMP6281/.vscode/settings.json
+__pycache__
