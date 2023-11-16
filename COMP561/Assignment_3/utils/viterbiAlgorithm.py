@@ -21,15 +21,6 @@ class Config:
 
     @classmethod
     def __make_emission_dict(cls, trans_in: dict, trans_out: dict):
-        codons_p_in = np.array(
-            [
-                trans_in[codon[0]] * trans_in[codon[1]] * trans_in[codon[2]]
-                if codon not in cls.stop_codons
-                else 0
-                for codon in cls.all_codons
-            ]
-        )
-        codons_p_in = list(codons_p_in / codons_p_in.sum())
         codons_p_out = [trans_out[i] for i in "ACTG"]
         # create start codon array
         start_codons = np.zeros(len(cls.all_codons))
@@ -48,7 +39,7 @@ class Config:
         stop_codons = list(stop_codons / stop_codons.sum())
 
         return {
-            "GENE": dict(zip(cls.all_codons, codons_p_in)),
+            "GENE": trans_in.copy(),
             "INTER": dict(zip("ACTG", codons_p_out)),
             "START": dict(zip(cls.all_codons, start_codons)),
             "STOP": dict(zip(cls.all_codons, stop_codons)),

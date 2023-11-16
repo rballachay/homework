@@ -22,7 +22,9 @@ def parse_fasta_file(fasta):
     return sequences, full_seq
 
 
-def generate_viterbi_config(gff: pd.DataFrame, gff_lens: pd.DataFrame, cfg: str):
+def generate_viterbi_config(
+    gff: pd.DataFrame, gff_lens: pd.DataFrame, cfg: str, sequences: str
+):
     if os.path.exists(cfg):
         with open(cfg, "r") as _obj:
             loaded_cfg = yaml.safe_load(_obj)
@@ -31,21 +33,23 @@ def generate_viterbi_config(gff: pd.DataFrame, gff_lens: pd.DataFrame, cfg: str)
         forward_genes = gff[
             (gff["type"] == "CDS") & (gff["seqid"] != "###") & (gff["strand"] == "+")
         ].reset_index(drop=True)
-        # forward_genes['id'] = forward_genes['seqid'].str[-5:].astype(int)
+
         coding_len = float((forward_genes["end"] - forward_genes["start"]).mean())
 
         print(f"Average coding region length: {coding_len:.0f}")
 
         all_exons = []
         all_gff_seqs = []
+        total_len = 0
         for row in gff_lens.itertuples():
             seq = np.ones(row.len)
             for subseq in forward_genes[
                 forward_genes["seqid"] == row.seqid
             ].itertuples():
-                seq[int(subseq.start) : int(subseq.end)] = np.nan
+                seq[int(subseq.start) - 1 : int(subseq.end)] = np.nan
 
             cumsum = pd.Series(seq).cumsum().fillna(method="pad")
+
             reset = -cumsum[pd.Series(seq).isnull()].diff().fillna(cumsum)
             result = (
                 pd.Series(seq).where(pd.Series(seq).notnull(), reset).cumsum().values
@@ -58,20 +62,30 @@ def generate_viterbi_config(gff: pd.DataFrame, gff_lens: pd.DataFrame, cfg: str)
             all_exons.extend(exons_lens[~np.isnan(exons_lens)].tolist())
 
             all_gff_seqs.extend(seq.tolist())
+            total_len += row.len
+
+        assert len(all_gff_seqs) == total_len
 
         noncode_len = float(np.average(all_exons))
         print(f"Average non-coding region length: {noncode_len:.0f}")
 
-        coding_chars = [
-            full_seq[i] for i in range(len(full_seq)) if np.isnan(all_gff_seqs[i])
+        codons = [
+            full_seq[i : i + 3]
+            for i in range(0, len(full_seq), 3)
+            if np.isnan(all_gff_seqs[i])
         ]
         noncoding_chars = [
             full_seq[i] for i in range(len(full_seq)) if ~np.isnan(all_gff_seqs[i])
         ]
 
-        coding_bases = dict(Counter(coding_chars))
-        total = sum(coding_bases.values())
-        coding_bases = {k: v / total for k, v in coding_bases.items()}
+        codon_dict = dict(Counter(codons))
+
+        # remove all the stop codons
+        for _codon in {"TAA", "TGA", "TAG"}:
+            codon_dict[_codon] = 0
+
+        total = sum(codon_dict.values())
+        codon_dict = {k: v / total for k, v in codon_dict.items()}
 
         noncoding_bases = dict(Counter(noncoding_chars))
         total = sum(noncoding_bases.values())
@@ -80,7 +94,7 @@ def generate_viterbi_config(gff: pd.DataFrame, gff_lens: pd.DataFrame, cfg: str)
         loaded_cfg = {
             "noncode_len": noncode_len,
             "coding_len": coding_len,
-            "coding_bases": coding_bases,
+            "coding_bases": codon_dict,
             "noncoding_bases": noncoding_bases,
         }
 
@@ -131,7 +145,7 @@ if __name__ == "__main__":
 
     fasta_dict, full_seq = parse_fasta_file(args.fasta)
 
-    config_dict = generate_viterbi_config(gff, gff_lens, args.cfg)
+    config_dict = generate_viterbi_config(gff, gff_lens, args.cfg, full_seq)
 
     config = Config(
         config_dict["coding_bases"],
