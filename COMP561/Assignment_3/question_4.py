@@ -22,6 +22,19 @@ def parse_fasta_file(fasta):
     return sequences, full_seq
 
 
+def rle(inarray):
+    """run length encoding. Partial credit to R rle function.
+    Multi datatype arrays catered for including non Numpy
+    returns: tuple (runlengths, startpositions, values)"""
+    ia = np.asarray(inarray)  # force numpy
+    n = len(ia)
+    y = ia[1:] != ia[:-1]  # pairwise unequal (string safe)
+    i = np.append(np.where(y), n - 1)  # must include last element posi
+    z = np.diff(np.append(-1, i))  # run lengths
+    p = np.cumsum(np.append(0, z))[:-1]  # positions
+    return (z, p, ia[i])
+
+
 def generate_viterbi_config(
     gff: pd.DataFrame, gff_lens: pd.DataFrame, cfg: str, sequences: str
 ):
@@ -34,37 +47,31 @@ def generate_viterbi_config(
             (gff["type"] == "CDS") & (gff["seqid"] != "###") & (gff["strand"] == "+")
         ].reset_index(drop=True)
 
-        coding_len = float((forward_genes["end"] - forward_genes["start"]).mean())
+        coding_len = float(
+            (forward_genes["end"] - forward_genes["start"]).mean(skipna=False)
+        )
 
         print(f"Average coding region length: {coding_len:.0f}")
 
         all_exons = []
+        all_introns = []
         all_gff_seqs = []
         total_len = 0
+        counter = 0
         for row in gff_lens.itertuples():
-            seq = np.ones(row.len)
-            for subseq in forward_genes[
-                forward_genes["seqid"] == row.seqid
-            ].itertuples():
-                seq[int(subseq.start) - 1 : int(subseq.end)] = np.nan
+            seq = np.zeros(int(row.len))
+            _genes = forward_genes[forward_genes["seqid"] == row.seqid]
+            for subseq in _genes.itertuples():
+                assert subseq.end < row.len
+                assert subseq.start < subseq.end
+                seq[int(subseq.start) : int(subseq.end)] = 1
 
-            cumsum = pd.Series(seq).cumsum().fillna(method="pad")
-
-            reset = -cumsum[pd.Series(seq).isnull()].diff().fillna(cumsum)
-            result = (
-                pd.Series(seq).where(pd.Series(seq).notnull(), reset).cumsum().values
-            )
-            end_of_frame = (
-                (result - np.concatenate([result[1:], [0]], axis=0)) == result
-            ) & (result > 0)
-            exons_lens = end_of_frame.astype(int) * result
-            exons_lens[exons_lens == 0] = np.nan
-            all_exons.extend(exons_lens[~np.isnan(exons_lens)].tolist())
+            len_seqs, start_idxs, values = rle(seq)
+            all_exons.extend(len_seqs[(values == 0)].tolist())
+            all_introns.extend(len_seqs[(values == 1)].tolist())
 
             all_gff_seqs.extend(seq.tolist())
             total_len += row.len
-
-        assert len(all_gff_seqs) == total_len
 
         noncode_len = float(np.average(all_exons))
         print(f"Average non-coding region length: {noncode_len:.0f}")
@@ -72,10 +79,10 @@ def generate_viterbi_config(
         codons = [
             full_seq[i : i + 3]
             for i in range(0, len(full_seq), 3)
-            if np.isnan(all_gff_seqs[i])
+            if (all_gff_seqs[i] == 1)
         ]
         noncoding_chars = [
-            full_seq[i] for i in range(len(full_seq)) if ~np.isnan(all_gff_seqs[i])
+            full_seq[i] for i in range(len(full_seq)) if all_gff_seqs[i] == 0
         ]
 
         codon_dict = dict(Counter(codons))

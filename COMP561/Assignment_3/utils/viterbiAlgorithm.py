@@ -185,9 +185,10 @@ class ViterbiAlgorithm:
                 if j == 1 and idx != 1:
                     print("Transitioning from gene to non-gene")
 
-            print(self.dp_prob[:, i])
             # some random number to keep the thing going
-            # self.dp_prob[:,i]*=4
+            if not i % 3:
+                if sum(self.dp_prob[:, i]) < 1:
+                    self.dp_prob *= 100
 
             if sum(self.dp_prob[:, i]) == 0:
                 raise Exception("Probability reached zero, must re-start")
