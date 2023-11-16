@@ -142,7 +142,6 @@ if __name__ == "__main__":
 
     viterbi = ViterbiAlgorithm(config)
 
-
-    # treat each sequence differently 
-    for name, seq in fasta_dict.items(): 
+    # treat each sequence differently
+    for name, seq in fasta_dict.items():
         viterbi.parse_sequence(seq)

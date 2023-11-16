@@ -30,9 +30,7 @@ class Config:
             ]
         )
         codons_p_in = list(codons_p_in / codons_p_in.sum())
-
         codons_p_out = [trans_out[i] for i in "ACTG"]
-
         # create start codon array
         start_codons = np.zeros(len(cls.all_codons))
 
@@ -61,12 +59,14 @@ class Config:
         _zeros = np.zeros(len(cls.states))
         # remember that we are keeping order from states
         gene_trans = _zeros.copy()
-        gene_trans[0] = 1 - 3 / l_in  # gene to gene is 3/999
-        gene_trans[-1] = 3 / l_in
+        gene_trans[0] = 1 - 3 / l_in  # gene to gene is 1-3/999
+        gene_trans[-1] = 3 / l_in  # gene to stop is 3/999
+        assert sum(gene_trans) == 1
 
         inter_trans = _zeros.copy()
         inter_trans[1] = 1 - 1 / l_out
         inter_trans[2] = 1 / l_out
+        assert sum(inter_trans) == 1
 
         start_trans = _zeros.copy()
         start_trans[0] = 1  # guaranteed transition from start to gene
@@ -94,18 +94,26 @@ class ViterbiAlgorithm:
         self.in_phase = None
 
         self.n_bases = None
+        self.state_array = None
 
     def parse_sequence(self, seq: str):
         self.n_bases = len(seq)
 
         # initialize our three dynamic programming tables
         self.dp_prob = np.zeros((self.n_states, self.n_bases))
-        self.dp_path = np.zeros((self.n_states, self.n_bases))
+        self.dp_path = np.full((self.n_states, self.n_bases), -1)
         self.in_phase = np.ones((self.n_states, self.n_bases))
+        self.state_array = []
 
-        self.__viterbi(seq)
+        # run the forward + populate the three arrays initialized above
+        self.__viterbi_forward(seq)
 
-    def __viterbi(self, seq):
+        # run the sequence backward
+        self.__viterbi_backward(seq)
+
+        return self.state_array.copy()
+
+    def __viterbi_forward(self, seq):
         """Rules for codon length:
         If you're in a gene or a stop codon, the stride length always has to be 3,
         meaning you always have to be coming from a position 3 bases ahead of you.
@@ -127,48 +135,92 @@ class ViterbiAlgorithm:
                 if _state == "INTER":
                     _prob = self.config.emissions[_state][observed_base]
                 else:
-                    # if len(observed_codon)==3:
-                    _prob = self.config.emissions[_state][observed_codon]
-                    # else:
-                    # _prob = 0
+                    if len(observed_codon) == 3:
+                        _prob = self.config.emissions[_state][observed_codon]
+                    else:
+                        _prob = 0
 
                 _state_probs[j] = _prob
 
             for j in range(self.n_states):
-                # if the current in_phase is false, we don't want to touch this
+                # don't update current spot in table if we're not in phase
                 if not self.in_phase[j, i]:
+                    continue
+
+                # there's no point filling this value if the probability
+                # of the state is zero
+                if _state_probs[j] == 0:
                     continue
 
                 # we know that state j will be in position j of the transition dict
                 _transition = np.array(
                     [_arr[j] for _, _arr in self.config.transitions.items()]
                 )
-
+                # we have to normalize because the transition dict is set up in the
+                # other direction, but the idea is that we need to know the probability
+                # of coming to the state we are currently at from the other states,
+                # which should sum to one
+                # print(_transition)
+                # _transition = _transition/_transition.sum()
                 _state_transition = np.multiply(_transition, self.dp_prob[:, i - 1])
+                _state_transition = np.multiply(_state_transition, self.in_phase[:, i])
+                _state_transition = np.multiply(_state_transition, _state_probs[j])
+
+                # if idx==
 
                 # random tie breaking of all zeros will always give preference to coming from intergene
                 if not np.any(_state_transition):
-                    idx = 1
+                    continue
                 else:
                     idx = np.argmax(_state_transition)
 
+                if idx == 3:
+                    print(f"I am {j} at {i}, coming from {idx}")
                 # current probability  is the current state multiplied by most likely parent
-                _prob_max = _state_transition[idx] * _state_probs[j]
+                _prob_max = _state_transition[idx]
 
                 # this means that we are transitioning into a three-base reading frame,
                 # and must ignore the next two bases when we transition from here
-                if idx != 1:
-                    print(
-                        f"The most likely path for {self.config.states[j]} here is coming from a {self.config.states[idx]}! We are now shifting the reading frame into step size 3, {_prob_max}"
-                    )
-
+                if j != 1 and _prob_max > 0:
+                    # you cannot transition from the current stage
                     self.in_phase[j, i : i + 3] = False
-
-                    self.dp_path[j, i + 3] = idx
-                    self.dp_prob[j, i + 3] = _prob_max
+                    self.dp_path[j, i : i + 3] = idx
+                    self.dp_prob[j, i : i + 3] = _prob_max
+                # don't overwrite if it isn't in phase
                 else:
                     self.dp_path[j, i] = idx
                     self.dp_prob[j, i] = _prob_max
 
-            self.dp_prob[:, i] = self.dp_prob[:, i] / (self.dp_prob[:, i].sum())
+                if j == 1 and idx != 1:
+                    print("Transitioning from gene to non-gene")
+
             print(self.dp_prob[:, i])
+            # some random number to keep the thing going
+            # self.dp_prob[:,i]*=4
+
+            if sum(self.dp_prob[:, i]) == 0:
+                raise Exception("Probability reached zero, must re-start")
+            if np.isnan(self.dp_prob[:, i]).any():
+                raise Exception("Probability reached infinity!!!")
+
+            # normalize by the sum of probabilities for that step
+            # self.dp_prob[:,i] = self.dp_prob[:,i]/self.dp_prob[:,i].sum()
+
+    def __viterbi_backward(self, seq):
+        # start at the very end of the sequence
+        i = self.n_bases - 1
+
+        # get the max probability in the last column
+        start_idx = np.argmax(self.dp_prob[:, -1])
+        idx = start_idx
+        while i >= 0:
+            next_idx = self.dp_path[idx, i]
+            if idx == 1:
+                element = seq[i]
+                i -= 1
+            else:
+                element = seq[i - 2 : i + 1]
+                i -= 3
+            idx = next_idx
+            self.state_array.append(element)
+        # self.state_array.reverse()
