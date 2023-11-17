@@ -14,9 +14,7 @@ class Config:
         ["".join(i) for i in itertools.product(["A", "C", "T", "G"], repeat=3)]
     )
 
-    _a = np.log(10 ** -8)
-
-    initial_states = {"GENE": _a, "INTER": 1 + 10 ** -8, "START": _a, "STOP": _a}
+    initial_states = {"GENE": -np.inf, "INTER": 0, "START": -np.inf, "STOP": -np.inf}
 
     def __init__(self, trans_in: dict, trans_out: dict, l_in: float, l_out: float):
         self.emissions = self.__make_emission_dict(trans_in, trans_out)
@@ -24,14 +22,14 @@ class Config:
 
     @classmethod
     def __make_emission_dict(cls, trans_in: dict, trans_out: dict):
-        codons_p_in = np.array(list(trans_in.values())) + 10 ** -8
+        codons_p_in = np.array(list(trans_in.values()))
         codons_p_in = np.log(codons_p_in / codons_p_in.sum())
 
         codons_p_out = np.array([trans_out[i] for i in "ACTG"])
         codons_p_out = np.log(codons_p_out / codons_p_out.sum())
 
         # create start codon array
-        start_codons = np.full(len(cls.all_codons), 10 ** -8)
+        start_codons = np.zeros(len(cls.all_codons))
 
         for _codon in cls.start_codons:
             start_codons[list(cls.all_codons).index(_codon)] = 1
@@ -39,7 +37,7 @@ class Config:
         start_codons = list(np.log(start_codons / start_codons.sum()))
 
         # create stop codon array
-        stop_codons = np.full(len(cls.all_codons), 10 ** -8)
+        stop_codons = np.zeros(len(cls.all_codons))
 
         for _codon in cls.stop_codons:
             stop_codons[list(cls.all_codons).index(_codon)] = 1
@@ -55,7 +53,7 @@ class Config:
 
     @classmethod
     def __make_transition_dict(cls, l_in: float, l_out: float):
-        _zeros = np.full(len(cls.states), 10 ** -8)
+        _zeros = np.zeros(len(cls.states))
         # remember that we are keeping order from states
         gene_trans = _zeros.copy()
         gene_trans[0] = 1 - 3 / l_in  # gene to gene is 1-3/999
@@ -102,7 +100,7 @@ class ViterbiAlgorithm:
         self.n_bases = len(seq)
 
         # initialize our three dynamic programming tables
-        self.dp_prob = np.zeros((self.n_states, self.n_bases))
+        self.dp_prob = np.full((self.n_states, self.n_bases), -np.inf)
         self.dp_path = np.full((self.n_states, self.n_bases), -1)
         self.in_phase = np.ones((self.n_states, self.n_bases))
         self.state_array = []
@@ -159,6 +157,7 @@ class ViterbiAlgorithm:
                 _transition = np.array(
                     [_arr[j] for _, _arr in self.config.transitions.items()]
                 )
+
                 # we have to normalize because the transition dict is set up in the
                 # other direction, but the idea is that we need to know the probability
                 # of coming to the state we are currently at from the other states,
@@ -170,16 +169,15 @@ class ViterbiAlgorithm:
                 _state_transition[self.in_phase[:, i] == False] = -np.inf
                 _state_transition = _state_transition + _state_probs[j]
 
-                # if idx==
-
                 # random tie breaking of all zeros will always give preference to coming from intergene
-                if not np.any(_state_transition):
+                if np.all(_state_transition == -np.inf):
                     continue
                 else:
                     idx = np.argmax(_state_transition)
 
                 if idx == 3:
                     print(f"I am {j} at {i}, coming from {idx}")
+
                 # current probability  is the current state multiplied by most likely parent
                 _prob_max = _state_transition[idx]
 
@@ -190,6 +188,7 @@ class ViterbiAlgorithm:
                     self.in_phase[j, i : i + 3] = False
                     self.dp_path[j, i : i + 3] = idx
                     self.dp_prob[j, i : i + 3] = _prob_max
+                    # print(f"I am {j} at {i}, coming from {idx}")
                 # don't overwrite if it isn't in phase
                 else:
                     self.dp_path[j, i] = idx
@@ -197,12 +196,6 @@ class ViterbiAlgorithm:
 
                 if j == 1 and idx != 1:
                     print("Transitioning from gene to non-gene")
-
-            print(self.dp_path[:, i])
-            if sum(self.dp_prob[:, i]) == 0:
-                raise Exception("Probability reached zero, must re-start")
-            if np.isnan(self.dp_prob[:, i]).any():
-                raise Exception("Probability reached infinity!!!")
 
             # normalize by the sum of probabilities for that step
             # self.dp_prob[:,i] = self.dp_prob[:,i]/self.dp_prob[:,i].sum()
@@ -214,6 +207,11 @@ class ViterbiAlgorithm:
         # get the max probability in the last column
         start_idx = np.argmax(self.dp_prob[:, -1])
         idx = start_idx
+
+        # in the case that the thing doesn't end with intergene, which
+        # I guess is possible, start this gene at the end
+        if idx != 1:
+            stop_gene = i + 1
         while i >= 0:
             # stop index
             if idx == 3:

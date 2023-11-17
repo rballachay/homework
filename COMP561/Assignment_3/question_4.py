@@ -36,7 +36,7 @@ def rle(inarray):
 
 
 def generate_viterbi_config(
-    gff: pd.DataFrame, gff_lens: pd.DataFrame, cfg: str, sequences: str
+    gff: pd.DataFrame, gff_lens: pd.DataFrame, cfg: str, full_seq: str
 ):
     if os.path.exists(cfg):
         with open(cfg, "r") as _obj:
@@ -57,7 +57,6 @@ def generate_viterbi_config(
         all_introns = []
         all_gff_seqs = []
         total_len = 0
-        counter = 0
         for row in gff_lens.itertuples():
             seq = np.zeros(int(row.len))
             _genes = forward_genes[forward_genes["seqid"] == row.seqid]
@@ -111,6 +110,93 @@ def generate_viterbi_config(
     return loaded_cfg
 
 
+class Problems:
+    VIBRIO_CHOLERAE_GENES = "results/Vibrio_cholerae_viterbi_genes.csv"
+    VIBRIO_VULNIFICUS_GENES = "results/Vibrio_vulnificus_viterbi_genes.csv"
+    GFF_COLS = [
+        "seqid",
+        "source",
+        "type",
+        "start",
+        "end",
+        "score",
+        "strand",
+        "phase",
+        "attributes",
+    ]
+
+    @classmethod
+    def problem_b(cls, args):
+        gff = pd.read_csv(args.gff, sep="\t", header=None, skiprows=range(157))
+        gff.columns = cls.GFF_COLS.copy()
+
+        gff_lens = pd.read_csv(
+            args.gff,
+            delim_whitespace=True,
+            skiprows=lambda x: x not in range(1, 152),
+            header=None,
+        )
+        gff_lens = gff_lens[[1, 3]]
+        gff_lens.columns = ["seqid", "len"]
+        final_df = cls.__run(args.fasta, gff, gff_lens, args.cfg)
+        final_df.to_csv(cls.VIBRIO_CHOLERAE_GENES, index=False)
+
+    @classmethod
+    def problem_c(cls, gff, fasta, cfg):
+        gff_df = pd.read_csv(gff, sep="\t", header=None, skiprows=range(394))
+        gff_df.columns = cls.GFF_COLS.copy()
+
+        gff_lens = pd.read_csv(
+            gff,
+            delim_whitespace=True,
+            skiprows=lambda x: x not in range(1, 389),
+            header=None,
+        )
+        gff_lens = gff_lens[[1, 3]]
+        gff_lens.columns = ["seqid", "len"]
+        final_df = cls.__run(fasta, gff_df, gff_lens, cfg)
+        final_df.to_csv(cls.VIBRIO_VULNIFICUS_GENES, index=False)
+
+    @staticmethod
+    def __run(fasta: str, gff: pd.DataFrame, gff_lens: pd.DataFrame, cfg: str):
+        fasta_dict, full_seq = parse_fasta_file(fasta)
+
+        config_dict = generate_viterbi_config(gff, gff_lens, cfg, full_seq)
+
+        config = Config(
+            config_dict["coding_bases"],
+            config_dict["noncoding_bases"],
+            config_dict["coding_len"],
+            config_dict["noncode_len"],
+        )
+
+        viterbi = ViterbiAlgorithm(config)
+
+        final_data = []
+        # treat each sequence differently
+        for name, seq in fasta_dict.items():
+            _, coding_regions = viterbi.parse_sequence(seq)
+            if coding_regions:
+                for start, end in coding_regions:
+                    # note that the bases aren't zero-indexed here
+                    final_data.append(
+                        {
+                            "seqid": name,
+                            "start": start + 1,
+                            "end": end + 1,
+                        }
+                    )
+
+        final_df = pd.DataFrame(final_data)
+        final_df["source"] = "ena"
+        final_df["type"] = "CDS"
+        final_df["score"] = "."
+        final_df["strand"] = "+"
+        final_df["phase"] = 0
+        final_df["attributes"] = "."
+        return final_df
+
+
 if __name__ == "__main__":
     import argparse
 
@@ -128,61 +214,11 @@ if __name__ == "__main__":
 
     args = parser.parse_args()
 
-    gff = pd.read_csv(args.gff, sep="\t", header=None, skiprows=range(157))
-    gff.columns = [
-        "seqid",
-        "source",
-        "type",
-        "start",
-        "end",
-        "score",
-        "strand",
-        "phase",
-        "attributes",
-    ]
+    # run problem b, this one actually uses the argparse
+    # Problems.problem_b(args)
 
-    gff_lens = pd.read_csv(
-        args.gff,
-        delim_whitespace=True,
-        skiprows=lambda x: x not in range(1, 152),
-        header=None,
+    Problems.problem_c(
+        gff=args.gff,  # we want to use the gff from the original file
+        fasta="data/Vibrio_vulnificus.ASM74310v1.dna.toplevel.fa",
+        cfg=args.cfg,
     )
-    gff_lens = gff_lens[[1, 3]]
-    gff_lens.columns = ["seqid", "len"]
-
-    fasta_dict, full_seq = parse_fasta_file(args.fasta)
-
-    config_dict = generate_viterbi_config(gff, gff_lens, args.cfg, full_seq)
-
-    config = Config(
-        config_dict["coding_bases"],
-        config_dict["noncoding_bases"],
-        config_dict["coding_len"],
-        config_dict["noncode_len"],
-    )
-
-    viterbi = ViterbiAlgorithm(config)
-
-    final_data = []
-    # treat each sequence differently
-    for name, seq in fasta_dict.items():
-        _, coding_regions = viterbi.parse_sequence(seq)
-        if coding_regions:
-            for start, end in coding_regions:
-                # note that the bases aren't zero-indexed here
-                final_data.append(
-                    {
-                        "seqid": name,
-                        "start": start + 1,
-                        "end": end + 1,
-                    }
-                )
-
-    final_df = pd.DataFrame(final_data)
-    final_df["source"] = "ena"
-    final_df["type"] = "CDS"
-    final_df["score"] = "."
-    final_df["strand"] = "+"
-    final_df["phase"] = 0
-    final_df["attributes"] = "."
-    final_df.to_csv("Vibrio_cholerae_viterbi_genes.csv", index=False)
