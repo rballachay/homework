@@ -86,6 +86,7 @@ class ViterbiAlgorithm:
 
         self.n_bases = None
         self.state_array = None
+        self.coding_regions = None
 
     def parse_sequence(self, seq: str):
         self.n_bases = len(seq)
@@ -95,6 +96,7 @@ class ViterbiAlgorithm:
         self.dp_path = np.full((self.n_states, self.n_bases), -1)
         self.in_phase = np.ones((self.n_states, self.n_bases))
         self.state_array = []
+        self.coding_regions = []
 
         # run the forward + populate the three arrays initialized above
         self.__viterbi_forward(seq)
@@ -102,7 +104,7 @@ class ViterbiAlgorithm:
         # run the sequence backward
         self.__viterbi_backward(seq)
 
-        return self.state_array.copy()
+        return self.state_array.copy(), self.coding_regions.copy()
 
     def __viterbi_forward(self, seq):
         """Rules for codon length:
@@ -206,6 +208,11 @@ class ViterbiAlgorithm:
         start_idx = np.argmax(self.dp_prob[:, -1])
         idx = start_idx
         while i >= 0:
+            # stop index
+            if idx == 3:
+                stop_gene = i + 1
+            elif idx == 2:
+                self.coding_regions.append((i - 2, stop_gene))
             next_idx = self.dp_path[idx, i]
             if idx == 1:
                 element = seq[i]

@@ -163,6 +163,26 @@ if __name__ == "__main__":
 
     viterbi = ViterbiAlgorithm(config)
 
+    final_data = []
     # treat each sequence differently
     for name, seq in fasta_dict.items():
-        viterbi.parse_sequence(seq)
+        _, coding_regions = viterbi.parse_sequence(seq)
+        if coding_regions:
+            for start, end in coding_regions:
+                # note that the bases aren't zero-indexed here
+                final_data.append(
+                    {
+                        "seqid": name,
+                        "start": start + 1,
+                        "end": end + 1,
+                    }
+                )
+
+    final_df = pd.DataFrame(final_data)
+    final_df["source"] = "ena"
+    final_df["type"] = "CDS"
+    final_df["score"] = "."
+    final_df["strand"] = "+"
+    final_df["phase"] = 0
+    final_df["attributes"] = "."
+    final_df.to_csv("Vibrio_cholerae_viterbi_genes.csv", index=False)
