@@ -1,6 +1,7 @@
 import numpy as np
 import itertools
 import pandas as pd
+from collections import Counter
 
 
 class Config:
@@ -246,51 +247,86 @@ class GeneResults:
         self.annotated = annotated.copy()
         self.viterbi = viterbi.copy()
 
-        self.__comparison_dicts = None
         self.comparison = None
+        self.missed_df = None
+        self.partial_df = None
+
+        __unique_seq_ids = set(
+            self.annotated.seqid.unique().tolist()
+            + self.viterbi.seqid.unique().tolist()
+        )
+        self.unique_seq_ids = set(sorted(list(__unique_seq_ids)))
 
     def compare(self) -> pd.DataFrame:
         """Run comparison in steps"""
         # get all the distinct sequences in both dataframes
-        self.__comparison_dicts = []
+        __comparison_dicts = []
+        __partial = []
+        __missed = []
 
-        unique_seq_ids = set(
-            self.annotated.seqid.unique().tolist()
-            + self.viterbi.seqid.unique().tolist()
-        )
-        unique_seq_ids = set(sorted(list(unique_seq_ids)))
-        for seq_id in unique_seq_ids:
-            _viterbi = self.viterbi[self.viterbi.seqid == seq_id].copy()
-            _annotated = self.annotated[self.annotated.seqid == seq_id].copy()
+        for seq_id in self.unique_seq_ids:
+            _viterbi = (
+                self.viterbi[self.viterbi.seqid == seq_id].copy().reset_index(drop=True)
+            )
+            _annotated = (
+                self.annotated[self.annotated.seqid == seq_id]
+                .copy()
+                .reset_index(drop=True)
+            )
 
             # use the viterbi results as the basis and compare to annotated
-            _results_annotated = self.__compare_seq(_viterbi, _annotated)
-            self.__comparison_dicts.append(_results_annotated)
+            _results_annotated, _missed_i, _partial_i = self.__compare_seq(
+                _viterbi, _annotated
+            )
+            __comparison_dicts.append(_results_annotated)
+            __missed.append(_missed_i)
+            __partial.append(_partial_i)
 
-        self.comparison = self.__format_comparison(self.__comparison_dicts.copy())
-        return self.comparison.copy()
+        self.comparison = self.__format_comparison(__comparison_dicts.copy())
+
+        # going to return these here even though they aren't the final results.
+        # will do analysis in another object
+        self.missed_df = pd.concat(__missed).reset_index(drop=True)
+        self.partial_df = pd.concat(__partial).reset_index(drop=True)
+
+        return self.comparison.copy(), self.missed_df.copy(), self.partial_df.copy()
 
     def __compare_seq(self, viterbi: pd.DataFrame, annotated: pd.DataFrame):
         viterbi_genes = viterbi[["start", "end"]].values
         annotated_genes = annotated[["start", "end"]].values
 
         # essentially like a loop subtracting each row of each array from each row of the other array
+        # we first subtract every row of second array, then first array
+        # so each index i is n_viterbi*i + n_annotated
         difference = (viterbi_genes[:, np.newaxis] - annotated_genes).reshape(
             -1, viterbi_genes.shape[1]
         )
 
+        # missed genes here is a list of indexes in annotated_genes that correspond to
+        # genes that weren't detected by the viterbi algorithm
+        missed_idx, partial_idx = self.__get_missed_genes(
+            difference, annotated_genes.shape[0]
+        )
+
+        missed_genes = viterbi.iloc[missed_idx]
+        partial_genes = viterbi.iloc[partial_idx]
+
         # check the matching
-        matches_both = ((difference.sum(axis=1)) == 0).sum(axis=0)
+        matches_both = (difference.sum(axis=1) == 0).sum(axis=0)
         matches_start = (difference[:, 0] == 0).sum(axis=0) - matches_both
         matches_end = (difference[:, 1] == 0).sum(axis=0) - matches_both
 
-        return {
-            "match_start": matches_start,
-            "match_end": matches_end,
-            "matches_both": matches_both,
-            "n_annotated_genes": annotated_genes.shape[0],
-            "n_viterbi_genes": viterbi_genes.shape[0],
-        }
+        return (
+            {
+                "match_start": matches_start,
+                "match_end": matches_end,
+                "matches_both": matches_both,
+                "n_annotated_genes": annotated_genes.shape[0],
+                "n_viterbi_genes": viterbi_genes.shape[0],
+            },
+            missed_genes,
+            partial_genes,
+        )
 
     @staticmethod
     def __format_comparison(comparison_dicts: list):
@@ -307,3 +343,98 @@ class GeneResults:
 
             results[divisor] = sub_results
         return results
+
+    @staticmethod
+    def __get_missed_genes(difference: np.ndarray, n_annotated: int):
+        """Each n_annotated rows corresponds to the nth element of the n_viterbi
+        array subtracted vs the entire annotated array.
+        """
+        matching = difference == 0
+        if not n_annotated:
+            return np.array([]), np.array([])
+
+        # this will tell us if the gene is
+        annotated_info = (
+            matching.reshape(-1, n_annotated, matching.shape[-1])
+            .sum(axis=1)
+            .sum(axis=1)
+        )
+
+        missed_idx = np.where(annotated_info == 0)
+        partial_idx = np.where(annotated_info == 1)
+        return missed_idx, partial_idx
+
+
+class MissedGeneAnalysis:
+    def __init__(
+        self,
+        missed_df: pd.DataFrame,
+        partial_df: pd.DataFrame,
+        annotated: pd.DataFrame,
+        genes_dict: dict,
+        codons_dict: dict,
+    ):
+        self.missed_df = missed_df.copy()
+        self.partial_df = partial_df.copy()
+        self.annotated = annotated.copy()
+        self.genes_dict = genes_dict.copy()
+        self.codons_dict = codons_dict
+
+    def analyze(self):
+        # compare the length of missed, partially missed and all annotated genes
+        l_missed, l_partial, l_all = self.__get_lengths()
+        print(
+            f"Avg len missed = {l_missed:.3f}, len partial = {l_partial:.3f}, len total = {l_all:.3f}"
+        )
+        missed_freq, partial_freq, annotated_freq = self.__get_codon_freqs()
+        print(
+            f"Avg missed codon prob = {missed_freq:.5f}, avg partial codon prob = {partial_freq:.5f}, avg annotated codon freq = {annotated_freq:.5f}"
+        )
+
+    def __get_lengths(self):
+        l_missed = (self.missed_df["end"] - self.missed_df["start"]).mean()
+        l_partial = (self.partial_df["end"] - self.partial_df["start"]).mean()
+        l_annotated = (self.annotated["end"] - self.annotated["start"]).mean()
+        return l_missed, l_partial, l_annotated
+
+    def __get_codon_freqs(self):
+        missed_freq = self.__get_codons(
+            self.missed_df, self.genes_dict, self.codons_dict
+        )
+        partial_freq = self.__get_codons(
+            self.partial_df, self.genes_dict, self.codons_dict
+        )
+        annotated_freq = self.__get_codons(
+            self.annotated, self.genes_dict, self.codons_dict
+        )
+        return missed_freq, partial_freq, annotated_freq
+
+    @staticmethod
+    def __get_codons(
+        gene_df: pd.DataFrame, seq_dict: dict, codons_dict: dict, offset=1
+    ):
+        codons_all = []
+        i = 0
+        for seqid in seq_dict.keys():
+            _seq = seq_dict[seqid]
+            genes = gene_df[gene_df["seqid"] == seqid]
+            for gene in genes.itertuples():
+                codons = chunks(_seq[int(gene.start) - 1 + 3 : int(gene.end) - 3], 3)
+                codons_all.extend(list(codons))
+
+        codons_counted = dict(Counter(codons_all))
+
+        total = sum(codons_counted.values())
+        codons_counted = {k: v / total for k, v in codons_counted.items()}
+
+        codons = [codons_counted[i] * codons_dict[i] for i in codons_counted.keys()]
+        return sum(codons)
+
+
+def chunks(lst, n):
+    """Yield successive n-sized chunks from lst."""
+    for i in range(0, len(lst), n):
+        _yield = lst[i : i + n]
+        if len(_yield) != n:
+            continue
+        yield _yield

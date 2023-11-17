@@ -3,7 +3,12 @@ import numpy as np
 from collections import Counter
 import yaml
 import os
-from utils.viterbiAlgorithm import Config, ViterbiAlgorithm, GeneResults
+from utils.viterbiAlgorithm import (
+    Config,
+    ViterbiAlgorithm,
+    GeneResults,
+    MissedGeneAnalysis,
+)
 
 
 def parse_fasta_file(fasta):
@@ -155,7 +160,7 @@ class Problems:
         final_df.to_csv(cls.VIBRIO_VULNIFICUS_GENES, index=False)
 
     @classmethod
-    def problem_d(cls, gff: str):
+    def problem_de(cls, gff: str, fasta: str, cfg: str):
         if not os.path.exists(cls.VIBRIO_VULNIFICUS_GENES):
             raise Exception("You need to run question b and produce results first")
 
@@ -173,7 +178,18 @@ class Problems:
         # compare gene results
         gene_results = GeneResults(annotated=annotation, viterbi=viterbi_results)
 
-        comparison = gene_results.compare()
+        comparison, missed_df, partial_df = gene_results.compare()
+
+        fasta_dict, _ = parse_fasta_file(fasta)
+
+        with open(cfg, "r") as _obj:
+            config_dict = yaml.safe_load(_obj)
+
+        missed_analysis = MissedGeneAnalysis(
+            missed_df, partial_df, annotation, fasta_dict, config_dict["coding_bases"]
+        )
+
+        missed_analysis.analyze()
 
         with open(cls.VIBRIO_VULNIFICUS_RESULTS, "w") as outfile:
             yaml.dump(comparison, outfile, default_flow_style=False)
@@ -250,4 +266,8 @@ if __name__ == "__main__":
     #    cfg=args.cfg,
     # )
 
-    Problems.problem_d(gff="data/Vibrio_vulnificus.ASM74310v1.37.gff3")
+    Problems.problem_de(
+        gff="data/Vibrio_vulnificus.ASM74310v1.37.gff3",
+        fasta="data/Vibrio_vulnificus.ASM74310v1.dna.toplevel.fa",
+        cfg=args.cfg,
+    )
