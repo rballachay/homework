@@ -12,12 +12,16 @@ class PopulationSimulation:
 
     def simulate(self, fitness_function):
         population = self._initial_population.copy()
+
+        # array with shape (N_snps, N_alleles, N_inviduals, N_generations)
         self.simulation = np.zeros([*population.shape, self.n_gen])
 
         for gen in range(self.n_gen):
             generation = np.zeros_like(population)
             for i in range(self.N):
-                # return the index of parent 1 + 2
+                # return the index of parent 1 + 2. note that this doesn't guarantee
+                # that it contains our allele even if the allele of that index is selected.
+                # this is because we don't know yet if that strand will be selected.
                 idx_p1 = fitness_function(population, masked_idx=None)
                 idx_p2 = fitness_function(population, masked_idx=idx_p1)
                 child = self.reproduce(population[..., idx_p1], population[..., idx_p2])
@@ -51,6 +55,11 @@ class PopulationSimulation:
 
         self.extinction = np.average(_sum == 0, axis=0)
         self.fixation = np.average(_sum == self.L * 2, axis=0)
+
+    def count_snp_n(self, snp_id: int):
+        # sum the counts over both strands + all individuals
+        _sum = np.sum(self.simulation, axis=(1, 2))
+        return _sum[snp_id, :]
 
     def reproduce(self, mom, dad):
         mom_gamete = self.__meiosis(self.L, mom.copy())

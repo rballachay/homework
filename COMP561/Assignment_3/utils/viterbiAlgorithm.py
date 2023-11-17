@@ -13,7 +13,10 @@ class Config:
     all_codons = set(
         ["".join(i) for i in itertools.product(["A", "C", "T", "G"], repeat=3)]
     )
-    initial_states = {"GENE": 0, "INTER": 1, "START": 0, "STOP": 0}
+
+    _a = np.log(10 ** -8)
+
+    initial_states = {"GENE": _a, "INTER": 1 + 10 ** -8, "START": _a, "STOP": _a}
 
     def __init__(self, trans_in: dict, trans_out: dict, l_in: float, l_out: float):
         self.emissions = self.__make_emission_dict(trans_in, trans_out)
@@ -21,25 +24,30 @@ class Config:
 
     @classmethod
     def __make_emission_dict(cls, trans_in: dict, trans_out: dict):
-        codons_p_out = [trans_out[i] for i in "ACTG"]
+        codons_p_in = np.array(list(trans_in.values())) + 10 ** -8
+        codons_p_in = np.log(codons_p_in / codons_p_in.sum())
+
+        codons_p_out = np.array([trans_out[i] for i in "ACTG"])
+        codons_p_out = np.log(codons_p_out / codons_p_out.sum())
+
         # create start codon array
-        start_codons = np.zeros(len(cls.all_codons))
+        start_codons = np.full(len(cls.all_codons), 10 ** -8)
 
         for _codon in cls.start_codons:
             start_codons[list(cls.all_codons).index(_codon)] = 1
 
-        start_codons = list(start_codons / start_codons.sum())
+        start_codons = list(np.log(start_codons / start_codons.sum()))
 
         # create stop codon array
-        stop_codons = np.zeros(len(cls.all_codons))
+        stop_codons = np.full(len(cls.all_codons), 10 ** -8)
 
         for _codon in cls.stop_codons:
             stop_codons[list(cls.all_codons).index(_codon)] = 1
 
-        stop_codons = list(stop_codons / stop_codons.sum())
+        stop_codons = list(np.log(stop_codons / stop_codons.sum()))
 
         return {
-            "GENE": trans_in.copy(),
+            "GENE": dict(zip(trans_in.keys(), codons_p_in)),
             "INTER": dict(zip("ACTG", codons_p_out)),
             "START": dict(zip(cls.all_codons, start_codons)),
             "STOP": dict(zip(cls.all_codons, stop_codons)),
@@ -47,23 +55,25 @@ class Config:
 
     @classmethod
     def __make_transition_dict(cls, l_in: float, l_out: float):
-        _zeros = np.zeros(len(cls.states))
+        _zeros = np.full(len(cls.states), 10 ** -8)
         # remember that we are keeping order from states
         gene_trans = _zeros.copy()
         gene_trans[0] = 1 - 3 / l_in  # gene to gene is 1-3/999
         gene_trans[-1] = 3 / l_in  # gene to stop is 3/999
-        assert sum(gene_trans) == 1
+        gene_trans = np.log(gene_trans / gene_trans.sum())
 
         inter_trans = _zeros.copy()
         inter_trans[1] = 1 - 1 / l_out
         inter_trans[2] = 1 / l_out
-        assert sum(inter_trans) == 1
+        inter_trans = np.log(inter_trans / inter_trans.sum())
 
         start_trans = _zeros.copy()
         start_trans[0] = 1  # guaranteed transition from start to gene
+        start_trans = np.log(start_trans / start_trans.sum())
 
         stop_trans = _zeros.copy()
         stop_trans[1] = 1  # guaranteed transition from stop to intergene
+        stop_trans = np.log(stop_trans / stop_trans.sum())
 
         return {
             "GENE": gene_trans,
@@ -123,7 +133,7 @@ class ViterbiAlgorithm:
             observed_base = seq[i]
             observed_codon = seq[i : i + 3]
 
-            _state_probs = np.zeros(self.n_states)
+            _state_probs = np.full(self.n_states, -np.inf)
             for j, _state in enumerate(["GENE", "INTER", "START", "STOP"]):
                 if _state == "INTER":
                     _prob = self.config.emissions[_state][observed_base]
@@ -131,7 +141,7 @@ class ViterbiAlgorithm:
                     if len(observed_codon) == 3:
                         _prob = self.config.emissions[_state][observed_codon]
                     else:
-                        _prob = 0
+                        _prob = -np.inf
 
                 _state_probs[j] = _prob
 
@@ -142,7 +152,7 @@ class ViterbiAlgorithm:
 
                 # there's no point filling this value if the probability
                 # of the state is zero
-                if _state_probs[j] == 0:
+                if _state_probs[j] == -np.inf:
                     continue
 
                 # we know that state j will be in position j of the transition dict
@@ -155,9 +165,10 @@ class ViterbiAlgorithm:
                 # which should sum to one
                 # print(_transition)
                 # _transition = _transition/_transition.sum()
-                _state_transition = np.multiply(_transition, self.dp_prob[:, i - 1])
-                _state_transition = np.multiply(_state_transition, self.in_phase[:, i])
-                _state_transition = np.multiply(_state_transition, _state_probs[j])
+                _state_transition = _transition + self.dp_prob[:, i - 1]
+                # _state_transition = np.multiply(_state_transition, self.in_phase[:, i])
+                _state_transition[self.in_phase[:, i] == False] = -np.inf
+                _state_transition = _state_transition + _state_probs[j]
 
                 # if idx==
 
@@ -174,7 +185,7 @@ class ViterbiAlgorithm:
 
                 # this means that we are transitioning into a three-base reading frame,
                 # and must ignore the next two bases when we transition from here
-                if j != 1 and _prob_max > 0:
+                if j != 1 and _prob_max > -np.inf:
                     # you cannot transition from the current stage
                     self.in_phase[j, i : i + 3] = False
                     self.dp_path[j, i : i + 3] = idx
@@ -187,11 +198,7 @@ class ViterbiAlgorithm:
                 if j == 1 and idx != 1:
                     print("Transitioning from gene to non-gene")
 
-            # some random number to keep the thing going
-            if not i % 3:
-                if sum(self.dp_prob[:, i]) < 1:
-                    self.dp_prob *= 100
-
+            print(self.dp_path[:, i])
             if sum(self.dp_prob[:, i]) == 0:
                 raise Exception("Probability reached zero, must re-start")
             if np.isnan(self.dp_prob[:, i]).any():

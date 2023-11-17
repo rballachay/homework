@@ -21,6 +21,10 @@ def random_fitness(population: np.ndarray, masked_idx: int = None):
 
 
 def SNP_N_fitness(population: np.ndarray, snp_arr: np.ndarray, masked_idx: int = None):
+    """Takes in the population, and checks the number of counts of each SNP, multiplying
+    them by the snp_arr, which represents the advantage given by having 1 count of each
+    snp.
+    """
     _snp_pop = np.matmul(np.sum(population, axis=1).T, snp_arr)
     _population = np.ones(population.shape[-1]) + _snp_pop
 
@@ -34,6 +38,8 @@ def SNP_N_fitness(population: np.ndarray, snp_arr: np.ndarray, masked_idx: int =
 class Problems:
     AVG_FREQUENCY_20GEN = "results/avg_frequency_20gens.png"
     EXTINCT_FIXATE_1000 = "results/extinction_fixation_1000.png"
+    EXTINCTION_SNP42_SELECT = "results/extinction_snp42_select.png"
+    EXTINCTION_SNP42_DELETE = "results/extinction_snp42_delete.png"
 
     @classmethod
     def problem_b(cls, population):
@@ -87,6 +93,70 @@ class Problems:
 
         print(f"After {len(avgs)} sims, percentage extinct = {np.average(avgs==0)}")
 
+    @classmethod
+    def problem_g(cls, population):
+        # reduce the number of snps
+        _population = population[:100, ...]
+        simulation = PopulationSimulation(_population, 100, False)
+
+        snp_arr = np.zeros(_population.shape[0])
+        snp_arr[42] = 0.5
+
+        counts = np.zeros((100, 100))
+        for i in range(counts.shape[0]):
+            snp_n_fitness = partial(SNP_N_fitness, snp_arr=snp_arr)
+            simulation.simulate(fitness_function=snp_n_fitness)
+
+            # count of snp_n over 100 generations
+            snp_n = simulation.count_snp_n(42)
+            counts[i, :] = snp_n
+
+        extinction = (counts == 0).sum(axis=0) / 100
+        fixation = (counts == 200).sum(axis=0) / 100
+
+        fig, ax = plt.subplots()
+        ax.plot(range(1, 101), extinction, "g--")
+
+        ax2 = ax.twinx()
+        ax2.plot(range(1, 101), fixation, "b--")
+
+        ax.set_xlabel("Generation")
+        ax.set_ylabel("Extinction Rate", color="g")
+        ax2.set_ylabel("Fixation Rate", color="b")
+        fig.savefig(cls.EXTINCTION_SNP42_SELECT)
+
+    @classmethod
+    def problem_h(cls, population):
+        # reduce the number of snps
+        _population = population[:100, ...]
+        simulation = PopulationSimulation(_population, 100, False)
+
+        snp_arr = np.zeros(_population.shape[0])
+        snp_arr[42] = -0.11
+
+        counts = np.zeros((100, 100))
+        for i in range(counts.shape[0]):
+            snp_n_fitness = partial(SNP_N_fitness, snp_arr=snp_arr)
+            simulation.simulate(fitness_function=snp_n_fitness)
+
+            # count of snp_n over 100 generations
+            snp_n = simulation.count_snp_n(42)
+            counts[i, :] = snp_n
+
+        extinction = (counts == 0).sum(axis=0) / 100
+        fixation = (counts == 200).sum(axis=0) / 100
+
+        fig, ax = plt.subplots()
+        ax.plot(range(1, 101), extinction, "g--")
+
+        ax2 = ax.twinx()
+        ax2.plot(range(1, 101), fixation, "b--")
+
+        ax.set_xlabel("Generation")
+        ax.set_ylabel("Extinction Rate", color="g")
+        ax2.set_ylabel("Fixation Rate", color="b")
+        fig.savefig(cls.EXTINCTION_SNP42_DELETE)
+
 
 if __name__ == "__main__":
     import argparse
@@ -113,4 +183,8 @@ if __name__ == "__main__":
 
     # Problems.problem_e(population)
 
-    Problems.problem_f(population)
+    # Problems.problem_f(population)
+
+    # Problems.problem_g(population)
+
+    Problems.problem_h(population)
