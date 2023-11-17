@@ -1,6 +1,6 @@
-from typing import NamedTuple
 import numpy as np
 import itertools
+import pandas as pd
 
 
 class Config:
@@ -228,3 +228,82 @@ class ViterbiAlgorithm:
             idx = next_idx
             self.state_array.append(element)
         # self.state_array.reverse()
+
+
+class GeneResults:
+    """Class for parsing results of annotated genes and
+    comparing annotated results and results from viterbi
+    algorithm.
+    """
+
+    def __init__(self, annotated: pd.DataFrame, viterbi: pd.DataFrame):
+        viterbi = viterbi.copy().reindex(sorted(viterbi.columns), axis=1)
+        annotated = annotated.copy().reindex(sorted(annotated.columns), axis=1)
+
+        # check
+        assert (annotated.columns == viterbi.columns).all()
+
+        self.annotated = annotated.copy()
+        self.viterbi = viterbi.copy()
+
+        self.__comparison_dicts = None
+        self.comparison = None
+
+    def compare(self) -> pd.DataFrame:
+        """Run comparison in steps"""
+        # get all the distinct sequences in both dataframes
+        self.__comparison_dicts = []
+
+        unique_seq_ids = set(
+            self.annotated.seqid.unique().tolist()
+            + self.viterbi.seqid.unique().tolist()
+        )
+        unique_seq_ids = set(sorted(list(unique_seq_ids)))
+        for seq_id in unique_seq_ids:
+            _viterbi = self.viterbi[self.viterbi.seqid == seq_id].copy()
+            _annotated = self.annotated[self.annotated.seqid == seq_id].copy()
+
+            # use the viterbi results as the basis and compare to annotated
+            _results_annotated = self.__compare_seq(_viterbi, _annotated)
+            self.__comparison_dicts.append(_results_annotated)
+
+        self.comparison = self.__format_comparison(self.__comparison_dicts.copy())
+        return self.comparison.copy()
+
+    def __compare_seq(self, viterbi: pd.DataFrame, annotated: pd.DataFrame):
+        viterbi_genes = viterbi[["start", "end"]].values
+        annotated_genes = annotated[["start", "end"]].values
+
+        # essentially like a loop subtracting each row of each array from each row of the other array
+        difference = (viterbi_genes[:, np.newaxis] - annotated_genes).reshape(
+            -1, viterbi_genes.shape[1]
+        )
+
+        # check the matching
+        matches_both = ((difference.sum(axis=1)) == 0).sum(axis=0)
+        matches_start = (difference[:, 0] == 0).sum(axis=0) - matches_both
+        matches_end = (difference[:, 1] == 0).sum(axis=0) - matches_both
+
+        return {
+            "match_start": matches_start,
+            "match_end": matches_end,
+            "matches_both": matches_both,
+            "n_annotated_genes": annotated_genes.shape[0],
+            "n_viterbi_genes": viterbi_genes.shape[0],
+        }
+
+    @staticmethod
+    def __format_comparison(comparison_dicts: list):
+        comparison_df = pd.DataFrame(comparison_dicts)
+
+        results = {}
+        for divisor in {"annotated", "viterbi"}:
+            sub_results = {}
+            for numerator in {"match_start", "match_end", "matches_both"}:
+                value = (
+                    comparison_df[numerator] / comparison_df[f"n_{divisor}_genes"]
+                ).mean(axis=0)
+                sub_results[numerator] = float(f"{value:.3f}")
+
+            results[divisor] = sub_results
+        return results

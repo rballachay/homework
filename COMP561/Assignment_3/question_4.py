@@ -3,7 +3,7 @@ import numpy as np
 from collections import Counter
 import yaml
 import os
-from utils.viterbiAlgorithm import Config, ViterbiAlgorithm
+from utils.viterbiAlgorithm import Config, ViterbiAlgorithm, GeneResults
 
 
 def parse_fasta_file(fasta):
@@ -36,16 +36,12 @@ def rle(inarray):
 
 
 def generate_viterbi_config(
-    gff: pd.DataFrame, gff_lens: pd.DataFrame, cfg: str, full_seq: str
+    forward_genes: pd.DataFrame, gff_lens: pd.DataFrame, cfg: str, full_seq: str
 ):
     if os.path.exists(cfg):
         with open(cfg, "r") as _obj:
             loaded_cfg = yaml.safe_load(_obj)
     else:
-        # forward coding genes
-        forward_genes = gff[
-            (gff["type"] == "CDS") & (gff["seqid"] != "###") & (gff["strand"] == "+")
-        ].reset_index(drop=True)
 
         coding_len = float(
             (forward_genes["end"] - forward_genes["start"]).mean(skipna=False)
@@ -113,6 +109,7 @@ def generate_viterbi_config(
 class Problems:
     VIBRIO_CHOLERAE_GENES = "results/Vibrio_cholerae_viterbi_genes.csv"
     VIBRIO_VULNIFICUS_GENES = "results/Vibrio_vulnificus_viterbi_genes.csv"
+    VIBRIO_VULNIFICUS_RESULTS = "results/Vibrio_vulnificus_results_compare.yaml"
     GFF_COLS = [
         "seqid",
         "source",
@@ -143,13 +140,13 @@ class Problems:
 
     @classmethod
     def problem_c(cls, gff, fasta, cfg):
-        gff_df = pd.read_csv(gff, sep="\t", header=None, skiprows=range(394))
+        gff_df = pd.read_csv(gff, sep="\t", header=None, skiprows=range(157))
         gff_df.columns = cls.GFF_COLS.copy()
 
         gff_lens = pd.read_csv(
             gff,
             delim_whitespace=True,
-            skiprows=lambda x: x not in range(1, 389),
+            skiprows=lambda x: x not in range(1, 152),
             header=None,
         )
         gff_lens = gff_lens[[1, 3]]
@@ -157,11 +154,41 @@ class Problems:
         final_df = cls.__run(fasta, gff_df, gff_lens, cfg)
         final_df.to_csv(cls.VIBRIO_VULNIFICUS_GENES, index=False)
 
+    @classmethod
+    def problem_d(cls, gff: str):
+        if not os.path.exists(cls.VIBRIO_VULNIFICUS_GENES):
+            raise Exception("You need to run question b and produce results first")
+
+        annotation = pd.read_csv(gff, sep="\t", header=None, skiprows=range(394))
+        annotation.columns = cls.GFF_COLS.copy()
+        annotation = annotation[
+            (annotation["type"] == "CDS")
+            & (annotation["seqid"] != "###")
+            & (annotation["strand"] == "+")
+        ].reset_index(drop=True)
+
+        viterbi_results = pd.read_csv(cls.VIBRIO_VULNIFICUS_GENES, sep=",")
+        viterbi_results["end"] = viterbi_results["end"] - 1
+
+        # compare gene results
+        gene_results = GeneResults(annotated=annotation, viterbi=viterbi_results)
+
+        comparison = gene_results.compare()
+
+        with open(cls.VIBRIO_VULNIFICUS_RESULTS, "w") as outfile:
+            yaml.dump(comparison, outfile, default_flow_style=False)
+
     @staticmethod
     def __run(fasta: str, gff: pd.DataFrame, gff_lens: pd.DataFrame, cfg: str):
+
+        # forward coding genes
+        forward_genes = gff[
+            (gff["type"] == "CDS") & (gff["seqid"] != "###") & (gff["strand"] == "+")
+        ].reset_index(drop=True)
+
         fasta_dict, full_seq = parse_fasta_file(fasta)
 
-        config_dict = generate_viterbi_config(gff, gff_lens, cfg, full_seq)
+        config_dict = generate_viterbi_config(forward_genes, gff_lens, cfg, full_seq)
 
         config = Config(
             config_dict["coding_bases"],
@@ -217,8 +244,10 @@ if __name__ == "__main__":
     # run problem b, this one actually uses the argparse
     # Problems.problem_b(args)
 
-    Problems.problem_c(
-        gff=args.gff,  # we want to use the gff from the original file
-        fasta="data/Vibrio_vulnificus.ASM74310v1.dna.toplevel.fa",
-        cfg=args.cfg,
-    )
+    # Problems.problem_c(
+    #    gff=args.gff,  # we want to use the gff from the original file
+    #    fasta="data/Vibrio_vulnificus.ASM74310v1.dna.toplevel.fa",
+    #    cfg=args.cfg,
+    # )
+
+    Problems.problem_d(gff="data/Vibrio_vulnificus.ASM74310v1.37.gff3")
