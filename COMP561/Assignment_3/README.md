@@ -52,3 +52,38 @@ Original: S1-R1-S2-R2-S3-R1-S4-R2-S5-R1-S6
 ## Question 3.c 
 
 Assuming our algorithm is producing reads of 100 base pairs and our sequence contains a 1000 bp short tandem repeat, we will have a lot of fragments that will contain exactly the same bases. Because the goal of our algorithm is to make the shortest path possible, these reads will overlap perfectly and collapse down to a total repeat region of closer to 100, instead of 1000. 
+
+## Question 4.d 
+
+For results, please see the file Vibrio_vulnificus_results_compare.yaml:
+```bash
+annotated:
+  match_end: 0.314
+  match_start: 0.0
+  matches_both: 0.361
+viterbi:
+  match_end: 0.266
+  match_start: 0.0
+  matches_both: 0.312
+```
+
+This shows the fraction of genes from annotated and vertbi that match in the respective field.
+
+
+## Question 4.e
+
+### Properties of annotated genes that risk being missed 
+
+The predictor is well-tuned to maximize the probability according to the heuristics selected, meaning that it will likely avoid events that lower probability. This includes:
+
+1. Transitions of inter-gene to start
+2. Transitions of gene to stop
+3. Lower probability codons from the other gene, Vibrio Cholerae
+
+This means that genes and inter-codon regions of shorter length will be avoided. To illustrate this, the average length of genes that were missed by the viterbi algorithm was calculated to be ~330 bases, which is about 1/3 of the length of the average gene length in the gff file, which was ~920 bases. The codon probability is also telling, having an average probability (according to our codon probabilites in the config) of 0.0177, which is about ~3% less frequent. 
+
+### Properties of genes predicted by viterbi that don't exist (in annotations)
+
+As mentioned in the previous section, viterbi will theoretically tend to miss smaller genes +/ inter-gene regions if there are short genes interspersed by an inter-gene region, which can be entirely skipped over to create one large gene. In addition, because stop codons are all similary likely, the first stop codon may be skipped if it gives an opportunity to lengthen the gene. This is evidenced by the fact that the average gene length of viterbi genes that were partially unmatched by the annotations is ~1066, more than 15% greater than the average codon length ~920.
+
+

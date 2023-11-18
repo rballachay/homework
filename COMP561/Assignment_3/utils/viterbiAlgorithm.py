@@ -304,12 +304,30 @@ class GeneResults:
 
         # missed genes here is a list of indexes in annotated_genes that correspond to
         # genes that weren't detected by the viterbi algorithm
-        missed_idx, partial_idx = self.__get_missed_genes(
+        missed_idx_v, partial_idx_v = self.__get_missed_genes_viterbi(
             difference, annotated_genes.shape[0]
         )
 
-        missed_genes = viterbi.iloc[missed_idx]
-        partial_genes = viterbi.iloc[partial_idx]
+        missed_genes_v = viterbi.iloc[missed_idx_v].copy()
+        missed_genes_v["stage"] = "viterbi"
+        partial_genes_v = viterbi.iloc[partial_idx_v].copy()
+        partial_genes_v["stage"] = "viterbi"
+
+        missed_idx_a, partial_idx_a = self.__get_missed_genes_annotated(
+            difference, annotated_genes.shape[0]
+        )
+
+        missed_genes_a = annotated.iloc[missed_idx_a].copy()
+        missed_genes_a["stage"] = "annotated"
+        partial_genes_a = annotated.iloc[partial_idx_a].copy()
+        partial_genes_a["stage"] = "annotated"
+
+        missed_genes = pd.concat([missed_genes_a, missed_genes_v], axis=0).reset_index(
+            drop=True
+        )
+        partial_genes = pd.concat(
+            [partial_genes_a, partial_genes_v], axis=0
+        ).reset_index(drop=True)
 
         # check the matching
         matches_both = (difference.sum(axis=1) == 0).sum(axis=0)
@@ -345,7 +363,7 @@ class GeneResults:
         return results
 
     @staticmethod
-    def __get_missed_genes(difference: np.ndarray, n_annotated: int):
+    def __get_missed_genes_viterbi(difference: np.ndarray, n_annotated: int):
         """Each n_annotated rows corresponds to the nth element of the n_viterbi
         array subtracted vs the entire annotated array.
         """
@@ -358,6 +376,29 @@ class GeneResults:
             matching.reshape(-1, n_annotated, matching.shape[-1])
             .sum(axis=1)
             .sum(axis=1)
+        )
+
+        missed_idx = np.where(annotated_info == 0)
+        partial_idx = np.where(annotated_info == 1)
+        return missed_idx, partial_idx
+
+    @staticmethod
+    def __get_missed_genes_annotated(difference: np.ndarray, n_annotated: int):
+        """Each n_annotated rows corresponds to the nth element of the n_viterbi
+        array subtracted vs the entire annotated array.
+        """
+        matching = difference == 0
+        if not n_annotated or not matching.shape[0]:
+            return np.array([]), np.array([])
+
+        n_viterbi = int(difference.shape[0] / n_annotated)
+
+        _matching = np.concatenate(
+            [matching[i::n_annotated, :].copy() for i in range(n_annotated)], axis=0
+        )
+        # this will tell us if the gene is
+        annotated_info = (
+            _matching.reshape(-1, n_viterbi, matching.shape[-1]).sum(axis=1).sum(axis=1)
         )
 
         missed_idx = np.where(annotated_info == 0)
@@ -382,37 +423,60 @@ class MissedGeneAnalysis:
 
     def analyze(self):
         # compare the length of missed, partially missed and all annotated genes
-        l_missed, l_partial, l_all = self.__get_lengths()
+        print("\nFor genes from viterbi, here are the statistics:")
+        l_missed, l_partial, l_all = self.__get_lengths("viterbi")
         print(
             f"Avg len missed = {l_missed:.3f}, len partial = {l_partial:.3f}, len total = {l_all:.3f}"
         )
-        missed_freq, partial_freq, annotated_freq = self.__get_codon_freqs()
+        missed_freq, partial_freq, annotated_freq = self.__get_codon_freqs("viterbi")
         print(
             f"Avg missed codon prob = {missed_freq:.5f}, avg partial codon prob = {partial_freq:.5f}, avg annotated codon freq = {annotated_freq:.5f}"
         )
 
-    def __get_lengths(self):
-        l_missed = (self.missed_df["end"] - self.missed_df["start"]).mean()
-        l_partial = (self.partial_df["end"] - self.partial_df["start"]).mean()
-        l_annotated = (self.annotated["end"] - self.annotated["start"]).mean()
+        print("\nFor genes from annotated, here are the statistics:")
+        l_missed, l_partial, l_all = self.__get_lengths("annotated")
+        print(
+            f"Avg len missed = {l_missed:.3f}, len partial = {l_partial:.3f}, len total = {l_all:.3f}"
+        )
+        missed_freq, partial_freq, annotated_freq = self.__get_codon_freqs("annotated")
+        print(
+            f"Avg missed codon prob = {missed_freq:.5f}, avg partial codon prob = {partial_freq:.5f}, avg annotated codon freq = {annotated_freq:.5f}"
+        )
+
+    def __get_lengths(self, key=None):
+        if key:
+            _missed_df = self.missed_df[self.missed_df["stage"] == key]
+            _partial_df = self.partial_df[self.partial_df["stage"] == key]
+        else:
+            _missed_df = self.missed_df
+            _partial_df = self.partial_df
+
+        _annotated = self.annotated
+
+        l_missed = (_missed_df["end"] - _missed_df["start"]).mean()
+        l_partial = (_partial_df["end"] - _partial_df["start"]).mean()
+        l_annotated = (_annotated["end"] - _annotated["start"]).mean()
         return l_missed, l_partial, l_annotated
 
-    def __get_codon_freqs(self):
-        missed_freq = self.__get_codons(
-            self.missed_df, self.genes_dict, self.codons_dict
-        )
-        partial_freq = self.__get_codons(
-            self.partial_df, self.genes_dict, self.codons_dict
-        )
+    def __get_codon_freqs(self, key=None):
+        if key:
+            _missed_df = self.missed_df[self.missed_df["stage"] == key]
+            _partial_df = self.partial_df[self.partial_df["stage"] == key]
+        else:
+            _missed_df = self.missed_df
+            _partial_df = self.partial_df
+
+        _annotated = self.annotated
+
+        missed_freq = self.__get_codons(_missed_df, self.genes_dict, self.codons_dict)
+        partial_freq = self.__get_codons(_partial_df, self.genes_dict, self.codons_dict)
         annotated_freq = self.__get_codons(
-            self.annotated, self.genes_dict, self.codons_dict
+            _annotated, self.genes_dict, self.codons_dict
         )
         return missed_freq, partial_freq, annotated_freq
 
     @staticmethod
-    def __get_codons(
-        gene_df: pd.DataFrame, seq_dict: dict, codons_dict: dict, offset=1
-    ):
+    def __get_codons(gene_df: pd.DataFrame, seq_dict: dict, codons_dict: dict):
         codons_all = []
         i = 0
         for seqid in seq_dict.keys():
