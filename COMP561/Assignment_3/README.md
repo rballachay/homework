@@ -1,3 +1,6 @@
+## Question 1.a
+
+For code, see question_1 and associated utils imported from utils.popSimulation.
 
 ## Question 1.b
 
@@ -44,6 +47,10 @@ This is confirmed by simulation, where it survives in approximately 0.21-0.23 of
 # Question 2.b
 
 A total of 446 SNPs have p_value lower than 0.05. We would expect 500 SNPs to be significant by chance, 0.05*10000.
+
+# Question 2.a
+
+For code, see question_2.py and associated utils in utils.gwasRunner.
 
 # Question 2.c
 
@@ -170,23 +177,9 @@ noncoding_bases:
 
 ```
 
-## Question 4.d 
+## Question 4.b 
 
-For results, please see the file Vibrio_vulnificus_results_compare.yaml:
-```bash
-annotated:
-  match_end: 0.314
-  match_start: 0.0
-  matches_both: 0.361
-viterbi:
-  match_end: 0.266
-  match_start: 0.0
-  matches_both: 0.312
-```
-
-This shows the fraction of genes from annotated and vertbi that match in the respective field.
-
-## Question 4.a
+For code, see question_4.py and associated utils in utils.viterbiAlgorithm.
 
 In order to run the program, first:
 
