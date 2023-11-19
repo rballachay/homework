@@ -127,6 +127,20 @@ class Problems:
         "attributes",
     ]
 
+    def main(cls, args):
+        gff = pd.read_csv(args.gff, sep="\t", header=None, skiprows=range(157))
+        gff.columns = cls.GFF_COLS.copy()
+
+        gff_lens = pd.read_csv(
+            args.gff,
+            delim_whitespace=True,
+            skiprows=lambda x: x not in range(1, 152),
+            header=None,
+        )
+        gff_lens = gff_lens[[1, 3]]
+        gff_lens.columns = ["seqid", "len"]
+        final_df = cls.__run(args.fasta, gff, gff_lens, args.cfg)
+
     @classmethod
     def problem_b(cls, args):
         gff = pd.read_csv(args.gff, sep="\t", header=None, skiprows=range(157))
@@ -254,8 +268,12 @@ if __name__ == "__main__":
         "--fasta", type=str, default="data/Vibrio_cholerae.GFC_11.dna.toplevel.fa"
     )
     parser.add_argument("--cfg", type=str, default="data/viterbi_config.yaml")
+    parser.add_argument("--out", type=str, default="results/viterbi_results.csv")
 
     args = parser.parse_args()
+
+    # run main
+    Problems.main(args)
 
     # run problem b, this one actually uses the argparse
     # Problems.problem_b(args)
@@ -266,8 +284,8 @@ if __name__ == "__main__":
     #    cfg=args.cfg,
     # )
 
-    Problems.problem_de(
-        gff="data/Vibrio_vulnificus.ASM74310v1.37.gff3",
-        fasta="data/Vibrio_vulnificus.ASM74310v1.dna.toplevel.fa",
-        cfg=args.cfg,
-    )
+    # Problems.problem_de(
+    #    gff="data/Vibrio_vulnificus.ASM74310v1.37.gff3",
+    #    fasta="data/Vibrio_vulnificus.ASM74310v1.dna.toplevel.fa",
+    #    cfg=args.cfg,
+    # )

@@ -14,7 +14,7 @@ class PopulationSimulation:
         population = self._initial_population.copy()
 
         # array with shape (N_snps, N_alleles, N_inviduals, N_generations)
-        self.simulation = np.zeros([*population.shape, self.n_gen])
+        self.simulation = np.zeros([population.shape[0], self.n_gen])
 
         for gen in range(self.n_gen):
             generation = np.zeros_like(population)
@@ -30,12 +30,13 @@ class PopulationSimulation:
                 f"Finished generation {gen+1} of simulation, allele 1 has count of: {np.sum(generation[0,...])}"
             )
             population = generation.copy()
-            self.simulation[..., gen] = generation.copy()
+
+            self.simulation[..., gen] = np.sum(generation.copy(), axis=(1, 2))
 
     def summarize(self):
         # sum count of allele over both strands, all individuals
-        _sum = np.sum(self.simulation, axis=(1, 2))
-        self.count_end = np.sum(self.simulation, axis=(1, 2))
+        _sum = self.simulation.copy()
+        self.count_end = self.simulation.copy()
         x = _sum.T
         max_generation = np.where(
             np.count_nonzero(x, axis=0) == 0,
@@ -51,15 +52,16 @@ class PopulationSimulation:
             f"The percentage of extinct alleles after {self.n_gen} generations is: {self.per_extinct}"
         )
 
-        self.avg_freq = np.average(self.simulation, axis=(1, 2))
+        self.avg_freq = self.simulation / (
+            self._initial_population.shape[1] * self._initial_population.shape[2]
+        )
 
         self.extinction = np.average(_sum == 0, axis=0)
-        self.fixation = np.average(_sum == self.L * 2, axis=0)
+        self.fixation = np.average(_sum == self.N * 2, axis=0)
 
     def count_snp_n(self, snp_id: int):
         # sum the counts over both strands + all individuals
-        _sum = np.sum(self.simulation, axis=(1, 2))
-        return _sum[snp_id, :]
+        return self.simulation[snp_id, :]
 
     def reproduce(self, mom, dad):
         mom_gamete = self.__meiosis(self.L, mom.copy())

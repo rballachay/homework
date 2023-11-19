@@ -132,7 +132,7 @@ class Problems:
         simulation = PopulationSimulation(_population, 100, False)
 
         snp_arr = np.zeros(_population.shape[0])
-        snp_arr[42] = -0.11
+        snp_arr[42] = -0.10
 
         counts = np.zeros((100, 100))
         for i in range(counts.shape[0]):
@@ -183,7 +183,7 @@ if __name__ == "__main__":
 
     # Problems.problem_e(population)
 
-    # Problems.problem_f(population)
+    Problems.problem_f(population)
 
     # Problems.problem_g(population)
 

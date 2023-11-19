@@ -42,4 +42,4 @@ if __name__ == "__main__":
 
     # make the SNP table
     table = runner.make_snp_table(0.05, snp_ids)
-    table.to_csv(args.snp_table, index=False)
+    # table.to_csv(args.snp_table, index=False)
