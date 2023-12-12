@@ -4,9 +4,8 @@ import numpy as np
 def nw_extension(
     genome: str,
     query: str,
+    probs: np.ndarray,
     ungapped_hsps: dict,
-    match_score: float,
-    mismatch_score: float,
     gap_penalty: float,
 ):
     for seed, pairs in ungapped_hsps.items():
@@ -14,12 +13,17 @@ def nw_extension(
         for i_query, i_genome, i_len in pairs:
             genome_sub = genome[i_genome : i_genome + i_len]
             query_sub = query[i_query : i_query + i_len]
-            pairs = needleman_wunsch(
-                genome_sub, query_sub, match_score, mismatch_score, gap_penalty
-            )
+            pairs = needleman_wunsch(genome_sub, query_sub, probs, gap_penalty)
 
 
-def needleman_wunsch(x, y, match=1, mismatch=1, gap=1):
+def scoring_function(prob: float):
+    score = np.emath.logn(4, prob) + 1
+    if score < -1:
+        score = -1
+    return score
+
+
+def needleman_wunsch(x: str, y: str, probs: np.ndarray, gap=1):
     nx = len(x)
     ny = len(y)
     # Optimal score at each possible pair of characters.
@@ -34,10 +38,14 @@ def needleman_wunsch(x, y, match=1, mismatch=1, gap=1):
     t = np.zeros(3)
     for i in range(nx):
         for j in range(ny):
-            if x[i] == y[j]:
-                t[0] = F[i, j] + match
-            else:
-                t[0] = F[i, j] - mismatch
+            # if we have a matching base, we can use the probability of the base from x, otherwise
+            # use the non-dominant base
+            prob = probs[i]
+            if x[i] != y[j]:
+                prob = (1 - prob) / 3
+
+            score = scoring_function(prob)
+            t[0] = F[i, j] + score
             t[1] = F[i, j + 1] - gap
             t[2] = F[i + 1, j] - gap
             tmax = np.max(t)

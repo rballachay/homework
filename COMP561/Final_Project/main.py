@@ -7,13 +7,11 @@ from needleman_wunsch import nw_extension
 
 ## config
 NUCLEOTIDES = ["A", "C", "G", "T"]
-QUERY_LENGTH = 3000
+QUERY_LENGTH = 500
 RANDOM_SEED = 18
 WINDOW_SIZE = 11
 THRESHOLD = 0.6 ** WINDOW_SIZE
-GAP_PENALTY = -2
-MATCH_SCORE = 1
-MISTMATCH_SCORE = -1
+GAP_PENALTY = 2
 MIN_LEN_HSP = 15
 
 
@@ -32,9 +30,7 @@ def main(fasta: Path, confidence: Path):
 
     ungapped_hsps = get_ungapped_hsps(genome, query_dict, max_conf, query, MIN_LEN_HSP)
 
-    nw_extension(
-        genome, query, ungapped_hsps, MATCH_SCORE, MISTMATCH_SCORE, GAP_PENALTY
-    )
+    nw_extension(genome, query, max_conf, ungapped_hsps, GAP_PENALTY)
 
 
 def load_genome(fasta: Path, confidence: Path):
