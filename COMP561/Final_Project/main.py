@@ -2,6 +2,8 @@ import argparse
 from pathlib import Path
 import numpy as np
 from find_seeds import get_query, get_genome_dict, get_query_dict
+from ungapped_extension import get_ungapped_hsps
+from needleman_wunsch import nw_extension
 
 ## config
 NUCLEOTIDES = ["A", "C", "G", "T"]
@@ -10,6 +12,9 @@ RANDOM_SEED = 18
 WINDOW_SIZE = 11
 THRESHOLD = 0.6 ** WINDOW_SIZE
 GAP_PENALTY = -2
+MATCH_SCORE = 1
+MISTMATCH_SCORE = -1
+MIN_LEN_HSP = 15
 
 
 def main(fasta: Path, confidence: Path):
@@ -20,14 +25,16 @@ def main(fasta: Path, confidence: Path):
     query = get_query(genome, max_conf, QUERY_LENGTH, NUCLEOTIDES, RANDOM_SEED)
 
     # get 11-len fragments from query
-    genome_dict = get_genome_dict(genome, WINDOW_SIZE)
+    genome_dict = get_genome_dict(genome, max_conf, WINDOW_SIZE, NUCLEOTIDES, THRESHOLD)
 
     # get 11-len fragments from query
-    query_dict = get_query_dict(
-        genome, genome_dict, query, max_conf, WINDOW_SIZE, THRESHOLD
-    )
+    query_dict = get_query_dict(genome_dict, query, WINDOW_SIZE)
 
-    print(query_dict)
+    ungapped_hsps = get_ungapped_hsps(genome, query_dict, max_conf, query, MIN_LEN_HSP)
+
+    nw_extension(
+        genome, query, ungapped_hsps, MATCH_SCORE, MISTMATCH_SCORE, GAP_PENALTY
+    )
 
 
 def load_genome(fasta: Path, confidence: Path):
