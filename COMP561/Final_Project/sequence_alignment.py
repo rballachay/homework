@@ -130,6 +130,4 @@ def align_sequences(
 
 def scoring_function(prob: float):
     score = np.emath.logn(4, prob) + 1
-    if score < -1:
-        score = -1
     return score
