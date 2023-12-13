@@ -3,7 +3,7 @@ from pathlib import Path
 import numpy as np
 from find_seeds import get_query, get_genome_dict, get_query_dict
 from ungapped_extension import get_ungapped_hsps
-from needleman_wunsch import nw_extension
+from sequence_alignment import align_sequences
 
 ## config
 NUCLEOTIDES = ["A", "C", "G", "T"]
@@ -12,7 +12,7 @@ RANDOM_SEED = 18
 WINDOW_SIZE = 11
 THRESHOLD = 0.6 ** WINDOW_SIZE
 GAP_PENALTY = 2
-MIN_LEN_HSP = 15
+MIN_LEN_HSP = 30
 
 
 def main(fasta: Path, confidence: Path):
@@ -30,7 +30,7 @@ def main(fasta: Path, confidence: Path):
 
     ungapped_hsps = get_ungapped_hsps(genome, query_dict, max_conf, query, MIN_LEN_HSP)
 
-    nw_extension(genome, query, max_conf, ungapped_hsps, GAP_PENALTY)
+    align_sequences(genome, query, max_conf, ungapped_hsps, GAP_PENALTY)
 
 
 def load_genome(fasta: Path, confidence: Path):

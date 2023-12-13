@@ -1,6 +1,7 @@
 import math
 import numpy as np
 from utils import cachewrapper
+from copy import copy
 
 
 @cachewrapper("results/ungapped_high_scoring_pairs.json")
@@ -25,9 +26,10 @@ def get_ungapped_hsps(
                     else (1 - probabilities[genome_pos + i]) / 3
                 )
                 if p == 0:
-                    p += 1e-10
+                    p += 1e-100
                     score += math.log(p, 4) + 1
 
+            seed_score = copy(score)
             hsp = seed
             max_score = score
             dropoff_threshold = 30
@@ -48,14 +50,15 @@ def get_ungapped_hsps(
                 score += math.log(p, 4) + 1
                 if p == 0:
                     print("we have zero prob")
-                p += 1e-10
+
                 if score > max_score:
                     max_score = score
                     hsp += query_sequence[i]
                 elif max_score - score > dropoff_threshold:
                     break
 
-            score = max_score
+            score = seed_score
+            max_score = seed_score
 
             # Extend left
             hsp_start = query_pos
@@ -80,10 +83,10 @@ def get_ungapped_hsps(
             if len(hsp) < min_len_hsp:
                 continue
 
-            if seed not in hsp_dict:
-                hsp_dict[seed] = []
+            if hsp not in hsp_dict:
+                hsp_dict[hsp] = []
             occurrence = (hsp_start, genome_pos - (query_pos - hsp_start), len(hsp))
-            if occurrence not in hsp_dict[seed]:
-                hsp_dict[seed].append(occurrence)
+            if occurrence not in hsp_dict[hsp]:
+                hsp_dict[hsp].append(occurrence)
 
     return hsp_dict
