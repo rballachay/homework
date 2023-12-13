@@ -107,7 +107,7 @@ def align_sequences(
     alignment_method: str = "local",
 ):
     for seed, pairs in ungapped_hsps.items():
-        print(f"Gapped extension of seed {seed}")
+        print(f"Gapped extension of seed {seed}\n")
         for i_query, i_genome, i_len in pairs:
             genome_sub = genome[i_genome : i_genome + i_len]
             query_sub = query[i_query : i_query + i_len]
@@ -129,5 +129,7 @@ def align_sequences(
 
 
 def scoring_function(prob: float):
+    if prob==0:
+        prob=1e-10
     score = np.emath.logn(4, prob) + 1
     return score
