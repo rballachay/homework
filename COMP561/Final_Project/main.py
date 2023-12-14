@@ -1,36 +1,44 @@
 import argparse
 from pathlib import Path
 import numpy as np
-from find_seeds import get_query, get_genome_dict, get_query_dict
-from ungapped_extension import get_ungapped_hsps
-from sequence_alignment import align_sequences
+from blast import BLAST
+from eval_significance import GumbelSignificance
+
+# most important parameter
+QUERY_LENGTH = 1000
 
 ## config
 NUCLEOTIDES = ["A", "C", "G", "T"]
-QUERY_LENGTH = 500
 RANDOM_SEED = 18
 WINDOW_SIZE = 11
 THRESHOLD = 0.6 ** WINDOW_SIZE
 GAP_PENALTY = 2
-MIN_LEN_HSP = 30
+MIN_LEN_HSP = 20  # minimum length of high-scoring pair to be considered for gapped hsp
+SEARCH_DISTANCE = 50  # search distance for local alignment
 
 
 def main(fasta: Path, confidence: Path):
     # load in raw data
     genome, max_conf = load_genome(fasta, confidence)
 
-    # get query string from genome
-    query = get_query(genome, max_conf, QUERY_LENGTH, NUCLEOTIDES, RANDOM_SEED)
+    blast = BLAST(
+        WINDOW_SIZE,
+        NUCLEOTIDES,
+        THRESHOLD,
+        RANDOM_SEED,
+        MIN_LEN_HSP,
+        GAP_PENALTY,
+        SEARCH_DISTANCE,
+    )
 
-    # get 11-len fragments from query
-    genome_dict = get_genome_dict(genome, max_conf, WINDOW_SIZE, NUCLEOTIDES, THRESHOLD)
+    # gumbel_sig = GumbelSignificance(blast, genome, max_conf)
+    # gumbel_sig.get_significance()
 
-    # get 11-len fragments from query
-    query_dict = get_query_dict(genome_dict, query, WINDOW_SIZE)
+    # run blast
+    blast.run(genome, max_conf, QUERY_LENGTH)
 
-    ungapped_hsps = get_ungapped_hsps(genome, query_dict, max_conf, query, MIN_LEN_HSP)
-
-    align_sequences(genome, query, max_conf, ungapped_hsps, GAP_PENALTY)
+    # evaluate significance of the scores.
+    # run_monte_carlo(scored_hsps)
 
 
 def load_genome(fasta: Path, confidence: Path):

@@ -5,7 +5,7 @@ import pickle
 import json
 
 
-def cachewrapper(path: Path, use_cache: bool = True):
+def cachewrapper(path: Path):
     """caching decorator to save intermediate dfs,
     makes repeated testing much faster
     """
@@ -15,6 +15,7 @@ def cachewrapper(path: Path, use_cache: bool = True):
     def decorator(function):
         @wraps(function)
         def wrapper(*args, **kwargs):
+            use_cache = True
             if os.path.exists(path) and use_cache:
                 with open(path, "rb") as obj:
                     data = json.load(obj)

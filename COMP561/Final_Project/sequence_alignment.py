@@ -1,7 +1,6 @@
 import numpy as np
 import itertools
-
-SEARCH_DISTANCE = 50
+from utils import cachewrapper
 
 
 def needleman_wunsch(x: str, y: str, probs: np.ndarray, gap=1):
@@ -64,7 +63,7 @@ def needleman_wunsch(x: str, y: str, probs: np.ndarray, gap=1):
 
 def smith_waterman(a: str, b: str, probs: np.ndarray, gap_cost=2):
     def matrix(a, b, probs, gap_cost=2):
-        H = np.zeros((len(a) + 1, len(b) + 1), np.int)
+        H = np.zeros((len(a) + 1, len(b) + 1), np.float)
 
         for i, j in itertools.product(range(1, H.shape[0]), range(1, H.shape[1])):
             if a[i - 1] == b[j - 1]:
@@ -76,7 +75,7 @@ def smith_waterman(a: str, b: str, probs: np.ndarray, gap_cost=2):
             match = H[i - 1, j - 1] + score
             delete = H[i - 1, j] - gap_cost
             insert = H[i, j - 1] - gap_cost
-            H[i, j] = max(match, delete, insert, 0)
+            H[i, j] = max(match, delete, insert)
         return H
 
     def traceback(H, b, b_="", old_i=0):
@@ -93,43 +92,56 @@ def smith_waterman(a: str, b: str, probs: np.ndarray, gap_cost=2):
 
     a, b = a.upper(), b.upper()
     H = matrix(a, b, probs, gap_cost)
+    max_score = H.max()
     b_, pos = traceback(H, b)
     a_ = a[pos : pos + len(b_)]
-    return "\n".join([a_, b_])
+    return "\n".join([a_, b_]), max_score
 
 
+# @cachewrapper("results/full_sequence_alignment.json")
 def align_sequences(
     genome: str,
     query: str,
     probs: np.ndarray,
     ungapped_hsps: dict,
     gap_penalty: float,
+    search_distance: int,
     alignment_method: str = "local",
 ):
+    results = {}
     for seed, pairs in ungapped_hsps.items():
-        print(f"Gapped extension of seed {seed}\n")
         for i_query, i_genome, i_len in pairs:
-            genome_sub = genome[i_genome : i_genome + i_len]
-            query_sub = query[i_query : i_query + i_len]
 
             if alignment_method == "global":
-                pairs = needleman_wunsch(genome_sub, query_sub, probs, gap_penalty)
+                genome_sub = genome[i_genome : i_genome + i_len]
+                probs_sub = probs[i_genome : i_genome + i_len]
+                query_sub = query[i_query : i_query + i_len]
+                pairs, score = needleman_wunsch(
+                    genome_sub, query_sub, probs, gap_penalty
+                )
             else:
                 # search from 50 bases before the match to 50 bases after
-                genome_align = genome[
-                    i_genome
-                    - SEARCH_DISTANCE
-                    - i_query : i_genome
-                    + i_len
-                    + SEARCH_DISTANCE
-                ]
-                pairs = smith_waterman(genome_align, query, probs, gap_penalty)
+                start_idx = i_genome - search_distance - i_query
+                end_idx = i_genome + i_len + search_distance
+                genome_sub = genome[start_idx:end_idx]
+                probs_sub = probs[start_idx:end_idx]
+                query_sub = query
+                pairs, score = smith_waterman(
+                    genome_sub, query_sub, probs_sub, gap_penalty
+                )
 
-            print(pairs)
+            results[seed] = {
+                "score": score,
+                "aligned": pairs.split("\n"),
+                "seqs": [genome_sub, query_sub],
+                "probs": list(probs_sub),
+            }
+
+    return results
 
 
 def scoring_function(prob: float):
-    if prob==0:
-        prob=1e-10
+    if prob == 0:
+        prob = 1e-10
     score = np.emath.logn(4, prob) + 1
     return score
