@@ -5,7 +5,7 @@ from blast import BLAST
 from eval_significance import GumbelSignificance
 
 # most important parameter
-QUERY_LENGTH = 1000
+QUERY_LENGTH = 50
 
 ## config
 NUCLEOTIDES = ["A", "C", "G", "T"]

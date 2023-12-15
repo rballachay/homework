@@ -1,6 +1,48 @@
 import numpy as np
 import itertools
 from utils import cachewrapper
+import seaborn as sns
+import matplotlib.pyplot as plt
+import pandas as pd
+import matplotlib as mpl
+from enum import IntEnum
+
+
+class AlignmentPlotter:
+    def __init__(self):
+        self.first = True
+
+    def run(self, H, path, a, b):
+        if not self.first:
+            return
+
+        self.first = False
+        self.H = H
+        self.path = path
+        self.a = [" "] + list(a)
+        self.b = [" "] + list(b)
+
+    def plot(self):
+        fig, ax = plt.subplots(figsize=(20, 20))
+        data = pd.DataFrame(self.H, index=self.a, columns=self.b)
+
+        data_copy = data.copy()
+        vals = data_copy.values
+        vals[:, :] = 0
+        for i, j in self.path:
+            vals[i, j] = 1
+        data_copy.loc[:] = vals
+
+        sns.heatmap(data, ax=ax, cbar=False)
+        cmap1 = mpl.colors.ListedColormap(["c"])
+        sns.heatmap(
+            data_copy,
+            mask=vals == 0,
+            cmap=cmap1,
+            cbar=False,
+            ax=ax,
+        )
+        fig.savefig("smith_waterman_alignment.png", dpi=100)
 
 
 def needleman_wunsch(x: str, y: str, probs: np.ndarray, gap=1):
@@ -61,41 +103,97 @@ def needleman_wunsch(x: str, y: str, probs: np.ndarray, gap=1):
     return "\n".join([rx, ry])
 
 
-def smith_waterman(a: str, b: str, probs: np.ndarray, gap_cost=2):
-    def matrix(a, b, probs, gap_cost=2):
-        H = np.zeros((len(a) + 1, len(b) + 1), np.float)
+def smith_waterman(seq1, seq2, probs, gap=2):
+    # Assigning the constant values for the traceback
+    class Trace(IntEnum):
+        STOP = 0
+        LEFT = 1
+        UP = 2
+        DIAGONAL = 3
 
-        for i, j in itertools.product(range(1, H.shape[0]), range(1, H.shape[1])):
-            if a[i - 1] == b[j - 1]:
+    # Generating the empty matrices for storing scores and tracing
+    row = len(seq1) + 1
+    col = len(seq2) + 1
+    matrix = np.zeros(shape=(row, col), dtype=np.float)
+    tracing_matrix = np.zeros(shape=(row, col), dtype=np.int)
+
+    # Initialising the variables to find the highest scoring cell
+    max_score = -np.inf
+    max_index = (-1, -1)
+
+    # Calculating the scores for all cells in the matrix
+    for i in range(1, row):
+        for j in range(1, col):
+            # Calculating the diagonal score (match score)
+            if seq1[i - 1] == seq2[j - 1]:
                 prob = probs[i - 1]
             else:
                 prob = (1 - probs[i - 1]) / 3
 
-            score = scoring_function(prob)
-            match = H[i - 1, j - 1] + score
-            delete = H[i - 1, j] - gap_cost
-            insert = H[i, j - 1] - gap_cost
-            H[i, j] = max(match, delete, insert)
-        return H
+            diagonal_score = matrix[i - 1, j - 1] + scoring_function(prob)
 
-    def traceback(H, b, b_="", old_i=0):
-        # flip H to get index of **last** occurrence of H.max() with np.argmax()
-        H_flip = np.flip(np.flip(H, 0), 1)
-        i_, j_ = np.unravel_index(H_flip.argmax(), H_flip.shape)
-        i, j = np.subtract(
-            H.shape, (i_ + 1, j_ + 1)
-        )  # (i, j) are **last** indexes of H.max()
-        if H[i, j] == 0:
-            return b_, j
-        b_ = b[j - 1] + "-" + b_ if old_i - i > 1 else b[j - 1] + b_
-        return traceback(H[0:i, 0:j], b, b_, i)
+            # Calculating the vertical gap score
+            vertical_score = matrix[i - 1, j] - gap
 
-    a, b = a.upper(), b.upper()
-    H = matrix(a, b, probs, gap_cost)
-    max_score = H.max()
-    b_, pos = traceback(H, b)
-    a_ = a[pos : pos + len(b_)]
-    return "\n".join([a_, b_]), max_score
+            # Calculating the horizontal gap score
+            horizontal_score = matrix[i, j - 1] - gap
+
+            # Taking the highest score
+            matrix[i, j] = max(0, diagonal_score, vertical_score, horizontal_score)
+
+            # Tracking where the cell's value is coming from
+            if matrix[i, j] == 0:
+                tracing_matrix[i, j] = Trace.STOP
+
+            elif matrix[i, j] == horizontal_score:
+                tracing_matrix[i, j] = Trace.LEFT
+
+            elif matrix[i, j] == vertical_score:
+                tracing_matrix[i, j] = Trace.UP
+
+            elif matrix[i, j] == diagonal_score:
+                tracing_matrix[i, j] = Trace.DIAGONAL
+
+            # Tracking the cell with the maximum score
+            if matrix[i, j] >= max_score:
+                max_index = (i, j)
+                max_score = matrix[i, j]
+
+    # Initialising the variables for tracing
+    aligned_seq1 = ""
+    aligned_seq2 = ""
+    current_aligned_seq1 = ""
+    current_aligned_seq2 = ""
+    (max_i, max_j) = max_index
+
+    traceback_path = []
+    # Tracing and computing the pathway with the local alignment
+    while tracing_matrix[max_i, max_j] != Trace.STOP:
+        traceback_path.append((max_i, max_j))
+        if tracing_matrix[max_i, max_j] == Trace.DIAGONAL:
+            current_aligned_seq1 = seq1[max_i - 1]
+            current_aligned_seq2 = seq2[max_j - 1]
+            max_i = max_i - 1
+            max_j = max_j - 1
+
+        elif tracing_matrix[max_i, max_j] == Trace.UP:
+            current_aligned_seq1 = seq1[max_i - 1]
+            current_aligned_seq2 = "-"
+            max_i = max_i - 1
+
+        elif tracing_matrix[max_i, max_j] == Trace.LEFT:
+            current_aligned_seq1 = "-"
+            current_aligned_seq2 = seq2[max_j - 1]
+            max_j = max_j - 1
+
+        aligned_seq1 = aligned_seq1 + current_aligned_seq1
+        aligned_seq2 = aligned_seq2 + current_aligned_seq2
+
+    # Reversing the order of the sequences
+    aligned_seq1 = aligned_seq1[::-1]
+    aligned_seq2 = aligned_seq2[::-1]
+
+    return aligned_seq1, aligned_seq2, matrix, traceback_path
 
 
 # @cachewrapper("results/full_sequence_alignment.json")
@@ -109,6 +207,7 @@ def align_sequences(
     alignment_method: str = "local",
 ):
     results = {}
+    #plotter = AlignmentPlotter()
     for seed, pairs in ungapped_hsps.items():
         for i_query, i_genome, i_len in pairs:
 
@@ -121,14 +220,16 @@ def align_sequences(
                 )
             else:
                 # search from 50 bases before the match to 50 bases after
-                start_idx = i_genome - search_distance - i_query
-                end_idx = i_genome + i_len + search_distance
+                query_start_on_genome = i_genome - i_query
+                start_idx = query_start_on_genome - search_distance
+                end_idx = query_start_on_genome + len(query) + search_distance
                 genome_sub = genome[start_idx:end_idx]
                 probs_sub = probs[start_idx:end_idx]
                 query_sub = query
-                pairs, score = smith_waterman(
+                pairs, score, H, traceback_path = smith_waterman(
                     genome_sub, query_sub, probs_sub, gap_penalty
                 )
+                #plotter.run(H, traceback_path, genome_sub, query_sub)
 
             results[seed] = {
                 "score": score,
@@ -136,6 +237,9 @@ def align_sequences(
                 "seqs": [genome_sub, query_sub],
                 "probs": list(probs_sub),
             }
+
+            # only want to run plotter once
+            #plotter.plot()
 
     return results
 

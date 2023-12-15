@@ -27,7 +27,7 @@ def get_query(
         query_sequence += np.random.choice(nucleotides, p=nucleotide_probs)
 
     # Randomly insert 1/50nucleotides
-    for _ in range(random.randint(1, int(query_length / 50))):
+    for _ in range(random.randint(1, int(query_length / 10))):
         insert_pos = random.randint(0, len(query_sequence))
         query_sequence = (
             query_sequence[:insert_pos]
@@ -36,7 +36,7 @@ def get_query(
         )
 
     # Randomly delete 1/50 nucleotides
-    for _ in range(random.randint(1, int(query_length / 50))):
+    for _ in range(random.randint(1, int(query_length / 10))):
         if len(query_sequence) == 0:
             break
         del_pos = random.randint(0, len(query_sequence) - 1)
