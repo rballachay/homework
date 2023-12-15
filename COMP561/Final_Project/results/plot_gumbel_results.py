@@ -4,15 +4,17 @@ import matplotlib.pyplot as plt
 import pandas as pd
 
 monte_carlo = pd.read_csv("results/monte_carlo_results.csv")
-monte_carlo = monte_carlo[monte_carlo["n"] == 50]
+monte_carlo = monte_carlo[monte_carlo["n"] == 40]
 
 hist = np.histogram(monte_carlo["score"].values, bins=10, density=True)
 
+print(hist)
 fig, ax = plt.subplots(1, 1)
 
 ax.bar(hist[1][:-1], hist[0], alpha=0.6, width=0.3, linewidth=3)
 
 loc, scale = ss.gumbel_r.fit(monte_carlo["score"].values)
+raise Exception(loc, scale)
 dist = ss.gumbel_r(loc=loc, scale=scale)
 ax.plot(
     sorted(monte_carlo["score"].values),

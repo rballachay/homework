@@ -1,8 +1,15 @@
 import os
 from functools import wraps
 from pathlib import Path
-import pickle
+import numpy as np
 import json
+
+
+def scoring_function(prob: float):
+    if prob == 0:
+        prob = 1e-10
+    score = np.emath.logn(4, prob) + 1
+    return score
 
 
 def cachewrapper(path: Path):

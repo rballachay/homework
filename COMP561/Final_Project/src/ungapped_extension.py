@@ -2,6 +2,7 @@ import math
 import numpy as np
 import matplotlib.pyplot as plt
 from copy import copy
+from src.utils import scoring_function
 
 
 class UngappedPlotter:
@@ -36,7 +37,7 @@ class UngappedPlotter:
         plt.plot(locs, scores, "k")
         plt.xlabel("Position in Query Sequence (L=1000)")
         plt.ylabel("Ungapped Sequence Match Score")
-        #plt.savefig("results/ungapped_alginment.png")
+        # plt.savefig("results/ungapped_alignment.png")
 
 
 # @cachewrapper("results/ungapped_high_scoring_pairs.json")
@@ -45,11 +46,10 @@ def get_ungapped_hsps(
     seeds: dict,
     probabilities: np.ndarray,
     query_sequence: str,
-    min_len_hsp: int,
+    scoring_func: callable,
 ):
     hsp_dict = {}
     plotter = UngappedPlotter()
-
     for seed, positions in seeds.items():
         for pos in positions:
             plotter.new()
@@ -64,10 +64,7 @@ def get_ungapped_hsps(
                     if genome[genome_pos + i] == nucleotide
                     else (1 - probabilities[genome_pos + i]) / 3
                 )
-                if p == 0:
-                    p += 1e-10
-
-                score += math.log(p, 4) + 1
+                score += scoring_function(p)
                 seed_score.append(score)
 
             for i in range(len(seed)):
@@ -75,8 +72,10 @@ def get_ungapped_hsps(
 
             seed_score = copy(score)
             hsp = seed
+            temp_hsp = seed
             max_score = score
             dropoff_threshold = 30
+            final_scores = []
 
             # Extend right
             for i in range(query_pos + len(seed), len(query_sequence)):
@@ -89,19 +88,26 @@ def get_ungapped_hsps(
                     if query_sequence[i] == genome[idx_genome]
                     else (1 - probabilities[idx_genome]) / 3
                 )
-                if p == 0:
-                    p += 1e-10
-                score += math.log(p, 4) + 1
+                score += scoring_function(p)
                 plotter.forward(score, i)
 
-                if score > max_score:
+                if (max_score - score) < 0:
+                    if temp_hsp != hsp:
+                        hsp = temp_hsp
                     max_score = score
                     hsp += query_sequence[i]
-                elif max_score - score > dropoff_threshold:
+                    temp_hsp += query_sequence[i]
+                elif (max_score - score) >= 0 and (
+                    max_score - score
+                ) <= dropoff_threshold:
+                    temp_hsp += query_sequence[i]
+                elif (max_score - score) > dropoff_threshold:
                     break
 
+            final_scores.append(max_score)
             score = seed_score
             max_score = seed_score
+            temp_hsp = hsp
 
             # Extend left
             hsp_start = query_pos
@@ -112,18 +118,24 @@ def get_ungapped_hsps(
                     if query_sequence[i] == genome[genome_pos + i - query_pos]
                     else (1 - probabilities[genome_pos + i - query_pos]) / 3
                 )
-                if p == 0:
-                    p += 1e-10
-                score += math.log(p, 4) + 1
+                score += scoring_function(p)
                 plotter.backward(score, i)
 
-                if score > max_score:
+                if (max_score - score) < 0:
+                    if hsp != temp_hsp:
+                        hsp = temp_hsp
                     max_score = score
                     hsp = query_sequence[i] + hsp
+                    temp_hsp = query_sequence[i] + temp_hsp
                     hsp_start = i
+                elif (max_score - score) >= 0 and (
+                    max_score - score
+                ) <= dropoff_threshold:
+                    temp_hsp = query_sequence[i] + temp_hsp
                 elif (max_score - score) > dropoff_threshold:
                     break
 
+            final_scores.append(max_score)
             gs_ = int(genome_pos - (query_pos - hsp_start))
             plotter.add_seq(
                 (
@@ -132,9 +144,9 @@ def get_ungapped_hsps(
                 )
             )
 
-            # don't consider high scoring pairs that are under length
-            # threshold - waste of time
-            if len(hsp) < min_len_hsp:
+            # don't consider high scoring pairs that are under our
+            # designated score thresold
+            if not scoring_func(len(hsp), len(hsp), max(final_scores)):
                 continue
 
             if hsp not in hsp_dict:

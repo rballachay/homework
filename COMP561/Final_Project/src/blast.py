@@ -1,6 +1,6 @@
-from find_seeds import get_query, get_genome_dict, get_query_dict
-from ungapped_extension import get_ungapped_hsps
-from sequence_alignment import align_sequences
+from src.find_seeds import get_query, get_genome_dict, get_query_dict
+from src.ungapped_extension import get_ungapped_hsps
+from src.sequence_alignment import align_sequences
 import numpy as np
 
 
@@ -11,7 +11,6 @@ class BLAST:
         nucleotides: list,
         threshold: float,
         random_seed: int,
-        min_length_hsp: int,
         gap_penalty: int,
         search_distance: int,
         plot: bool = True,
@@ -21,7 +20,6 @@ class BLAST:
         self.nucleotides = nucleotides
         self.threshold = threshold
         self.random_seed = random_seed
-        self.min_length_hsp = min_length_hsp
         self.gap_penalty = gap_penalty
         self.search_distance = search_distance
         self.plot = plot
@@ -31,7 +29,7 @@ class BLAST:
         genome: str,
         max_conf: np.ndarray,
         query_length: int,
-        use_cache: bool = True,
+        scoring_func: callable,
     ):
         # get 11-len fragments from query
         genome_dict = get_genome_dict(
@@ -48,7 +46,7 @@ class BLAST:
 
         # get dictionary of all high-scoring pairs
         ungapped_hsps, plotter = get_ungapped_hsps(
-            genome, query_dict, max_conf, query, self.min_length_hsp
+            genome, query_dict, max_conf, query, scoring_func
         )
 
         if self.plot:

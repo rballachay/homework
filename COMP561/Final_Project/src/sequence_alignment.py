@@ -1,11 +1,12 @@
 import numpy as np
-import itertools
-from utils import cachewrapper
 import seaborn as sns
 import matplotlib.pyplot as plt
 import pandas as pd
 import matplotlib as mpl
 from enum import IntEnum
+from src.utils import scoring_function
+
+MIN_SCORE = 8
 
 
 class AlignmentPlotter:
@@ -33,8 +34,9 @@ class AlignmentPlotter:
             vals[i, j] = 1
         data_copy.loc[:] = vals
 
-        sns.heatmap(data, ax=ax, cbar=False)
-        cmap1 = mpl.colors.ListedColormap(["c"])
+        blue = sns.color_palette("Blues", as_cmap=True)
+        sns.heatmap(data, ax=ax, cbar=False, cmap=blue)
+        cmap1 = mpl.colors.ListedColormap(["r"])
         sns.heatmap(
             data_copy,
             mask=vals == 0,
@@ -42,7 +44,7 @@ class AlignmentPlotter:
             cbar=False,
             ax=ax,
         )
-        fig.savefig("smith_waterman_alignment.png", dpi=100)
+        fig.savefig("results/smith_waterman_alignment.png", dpi=100)
 
 
 def needleman_wunsch(x: str, y: str, probs: np.ndarray, gap=1):
@@ -139,10 +141,12 @@ def smith_waterman(seq1, seq2, probs, gap=2):
             horizontal_score = matrix[i, j - 1] - gap
 
             # Taking the highest score
-            matrix[i, j] = max(0, diagonal_score, vertical_score, horizontal_score)
+            matrix[i, j] = max(
+                MIN_SCORE, diagonal_score, vertical_score, horizontal_score
+            )
 
             # Tracking where the cell's value is coming from
-            if matrix[i, j] == 0:
+            if matrix[i, j] < MIN_SCORE:
                 tracing_matrix[i, j] = Trace.STOP
 
             elif matrix[i, j] == horizontal_score:
@@ -242,10 +246,3 @@ def align_sequences(
             # plotter.plot()
 
     return results
-
-
-def scoring_function(prob: float):
-    if prob == 0:
-        prob = 1e-10
-    score = np.emath.logn(4, prob) + 1
-    return score

@@ -1,11 +1,12 @@
 import argparse
 from pathlib import Path
 import numpy as np
-from blast import BLAST
-from eval_significance import GumbelSignificance
+from src.blast import BLAST
+from src.eval_significance import GumbelSignificance
+import json
 
 # most important parameter
-QUERY_LENGTH = 100
+QUERY_LENGTH = 200
 
 ## config
 NUCLEOTIDES = ["A", "C", "G", "T"]
@@ -13,8 +14,8 @@ RANDOM_SEED = 18
 WINDOW_SIZE = 11
 THRESHOLD = 0.6 ** WINDOW_SIZE
 GAP_PENALTY = 2
-MIN_LEN_HSP = 20  # minimum length of high-scoring pair to be considered for gapped hsp
 SEARCH_DISTANCE = 50  # search distance for local alignment
+HSP_P_CUTOFF = 1e-10
 
 
 def main(fasta: Path, confidence: Path):
@@ -26,20 +27,22 @@ def main(fasta: Path, confidence: Path):
         NUCLEOTIDES,
         THRESHOLD,
         RANDOM_SEED,
-        MIN_LEN_HSP,
         GAP_PENALTY,
         SEARCH_DISTANCE,
     )
 
     gumbel_sig = GumbelSignificance(blast, genome, max_conf)
 
-    # run blast
-    results = blast.run(genome, max_conf, QUERY_LENGTH)
+    scoring_func = gumbel_sig.get_scoring(thresh=HSP_P_CUTOFF)
 
-    print(results)
+    # run blast
+    results = blast.run(genome, max_conf, QUERY_LENGTH, scoring_func)
 
     # evaluate significance of the scores.
     gumbel_sig.add_significance(results)
+
+    with open("results/final_blast_results.json", "w") as js:
+        json.dump(results, js)
 
 
 def load_genome(fasta: Path, confidence: Path):

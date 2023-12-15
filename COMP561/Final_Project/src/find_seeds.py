@@ -5,7 +5,7 @@ COMP561 Proejct - Finding Seed
 import random
 import numpy as np
 from collections import defaultdict
-from utils import cachewrapper
+from src.utils import cachewrapper
 
 
 def get_query(
@@ -40,7 +40,9 @@ def get_query(
         if len(query_sequence) == 0:
             break
         del_pos = random.randint(0, len(query_sequence) - 1)
-        query_sequence = query_sequence[:del_pos] + query_sequence[del_pos + 1 :]
+        len_ = random.randint(1, 4)
+        query_sequence = query_sequence[:del_pos] + query_sequence[del_pos + len_ :]
+
     return query_sequence
 
 
