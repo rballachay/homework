@@ -5,7 +5,7 @@ from blast import BLAST
 from eval_significance import GumbelSignificance
 
 # most important parameter
-QUERY_LENGTH = 50
+QUERY_LENGTH = 100
 
 ## config
 NUCLEOTIDES = ["A", "C", "G", "T"]
@@ -31,14 +31,15 @@ def main(fasta: Path, confidence: Path):
         SEARCH_DISTANCE,
     )
 
-    # gumbel_sig = GumbelSignificance(blast, genome, max_conf)
-    # gumbel_sig.get_significance()
+    gumbel_sig = GumbelSignificance(blast, genome, max_conf)
 
     # run blast
-    blast.run(genome, max_conf, QUERY_LENGTH)
+    results = blast.run(genome, max_conf, QUERY_LENGTH)
+
+    print(results)
 
     # evaluate significance of the scores.
-    # run_monte_carlo(scored_hsps)
+    gumbel_sig.add_significance(results)
 
 
 def load_genome(fasta: Path, confidence: Path):

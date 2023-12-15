@@ -4,6 +4,8 @@ import random
 from difflib import SequenceMatcher
 from blast import BLAST
 from sequence_alignment import smith_waterman
+import os
+import scipy.stats as ss
 
 
 class GumbelSignificance:
@@ -17,6 +19,7 @@ class GumbelSignificance:
         # this will only be set in the case that the monte
         # carlo simulation is run
         self._monte_carlo_results = None
+        self.monte_carlo_path = "results/monte_carlo_results.csv"
 
         # here are the lengths we are going to use to evaluate
         # our gumbel parameters
@@ -26,17 +29,48 @@ class GumbelSignificance:
         # for each of our lengths in order to estimate mean of gumbel
         self.n_sims = 100
 
-    def get_significance(self):
+    def add_significance(self, results):
         gumbel_parameters = self.gumbel_parameters
+
+        # mu = log(K*m*n)/sigma
+        for key, content in results.items():
+            seqs = content["seqs"]
+            m_n = len(seqs[0]) * len(seqs[1])
+            loc = np.log(gumbel_parameters["K"] * m_n) / gumbel_parameters["sigma"]
+            scale = gumbel_parameters["sigma"]
+            dist = ss.gumbel_r(loc=loc, scale=scale)
+            content["p-value"] = dist.pdf(content["score"])
 
     @property
     def gumbel_parameters(self):
         """Gumbel parameters need to be created before any of this is done"""
         if self._gumbel_parameters is None:
-            self._gumbel_parameters = self.__run_monte_carlo_simulation()
+            self._gumbel_parameters = self.__get_gumbel_parameters()
         return self._gumbel_parameters
 
+    def __get_gumbel_parameters(
+        self,
+    ):
+        monte_carlo_results = self.__run_monte_carlo_simulation()
+        y = []
+        x = []
+        sigmas = []
+        for (m, n), _monte_carlo_results in monte_carlo_results.groupby(["m", "n"]):
+            loc, scale = ss.gumbel_r.fit(_monte_carlo_results["score"].values)
+            y.append(np.exp(loc * scale))
+            x.append(m * n)
+            sigmas.append(scale)
+
+        K, _, _, _ = np.linalg.lstsq(
+            np.array(x).reshape(len(x), -1), np.array(y).reshape(len(y), -1)
+        )
+        sigma = np.average(sigmas)
+        K = K[0][0]
+        return {"K": K, "sigma": sigma}
+
     def __run_monte_carlo_simulation(self):
+        if os.path.exists(self.monte_carlo_path):
+            return pd.read_csv(self.monte_carlo_path)
         # initialize the monte carlo results
         self._monte_carlo_results = []
         for query_len in self.lens:
@@ -55,7 +89,9 @@ class GumbelSignificance:
             # randomly shuffle the genome and get the max score
             for i in range(self.n_sims):
                 genome_, probs_ = unison_shuffled_copies(genome_seq, probs)
-                _, score = smith_waterman("".join(genome_), query_seq, np.array(probs_))
+                _, score, _, _ = smith_waterman(
+                    "".join(genome_), query_seq, np.array(probs_)
+                )
 
                 self._monte_carlo_results.append(
                     {
@@ -66,9 +102,9 @@ class GumbelSignificance:
                         "sim": i + 1,
                     }
                 )
-        pd.DataFrame(self._monte_carlo_results).to_csv(
-            "monte_carlo_results.csv", index=False
-        )
+        results = pd.DataFrame(self._monte_carlo_results)
+        results.to_csv(self.monte_carlo_path, index=False)
+        return results
 
 
 def unison_shuffled_copies(a, b):
@@ -78,27 +114,3 @@ def unison_shuffled_copies(a, b):
     random.shuffle(c)
     a, b = zip(*c)
     return list(a), list(b)
-
-
-def evaluate_alignments(scored_hsps: dict):
-    """Evaluate the p-value of the alignments
-    scored_hsps has structure like:
-        'hsp_seed': {
-                'score':score,
-                'aligned':pairs.split('\n'),
-                'seqs':[genome_sub,query_sub],
-                'probs':list(probs_sub) }
-    """
-
-    # we don't want to run the same analysis multiple times on essentially
-    # the exact same sequences. In order to only evaluate those
-
-
-def similar(a, b):
-    return SequenceMatcher(None, a, b).ratio()
-
-    pass
-
-
-def fit_gumbel_dist():
-    pass

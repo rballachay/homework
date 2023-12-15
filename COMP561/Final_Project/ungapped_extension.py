@@ -36,7 +36,7 @@ class UngappedPlotter:
         plt.plot(locs, scores, "k")
         plt.xlabel("Position in Query Sequence (L=1000)")
         plt.ylabel("Ungapped Sequence Match Score")
-        plt.savefig("scores.png")
+        #plt.savefig("results/ungapped_alginment.png")
 
 
 # @cachewrapper("results/ungapped_high_scoring_pairs.json")

@@ -193,7 +193,7 @@ def smith_waterman(seq1, seq2, probs, gap=2):
     aligned_seq1 = aligned_seq1[::-1]
     aligned_seq2 = aligned_seq2[::-1]
 
-    return aligned_seq1, aligned_seq2, matrix, traceback_path
+    return aligned_seq1 + "\n" + aligned_seq2, max_score, matrix, traceback_path
 
 
 # @cachewrapper("results/full_sequence_alignment.json")
@@ -207,7 +207,7 @@ def align_sequences(
     alignment_method: str = "local",
 ):
     results = {}
-    #plotter = AlignmentPlotter()
+    # plotter = AlignmentPlotter()
     for seed, pairs in ungapped_hsps.items():
         for i_query, i_genome, i_len in pairs:
 
@@ -229,7 +229,7 @@ def align_sequences(
                 pairs, score, H, traceback_path = smith_waterman(
                     genome_sub, query_sub, probs_sub, gap_penalty
                 )
-                #plotter.run(H, traceback_path, genome_sub, query_sub)
+                # plotter.run(H, traceback_path, genome_sub, query_sub)
 
             results[seed] = {
                 "score": score,
@@ -239,7 +239,7 @@ def align_sequences(
             }
 
             # only want to run plotter once
-            #plotter.plot()
+            # plotter.plot()
 
     return results
 
