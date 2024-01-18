@@ -167,17 +167,15 @@ def tokens_to_ix(
 
 ### 1.1 Batching, shuffling, iteration
 def build_loader(
-    data_dict: dict, batch_size: int = 64, shuffle: bool = False
+    data_dict: dict, batch_size: int = 64, shuffle: bool = True
 ) -> Callable[[], Iterable[dict]]:
     # get the length of the data dict, then get the indices 
     n_items = len(data_dict['premise'])
-
-    # get the indexes batched up, randomizing order with pytorch
-    all_idx = torch.arange(n_items)
-    if shuffle:
-        all_idx = all_idx[torch.randperm(all_idx.size()[0])]
-    batch_idx = all_idx.split(batch_size)
     def loader():
+        all_idx = torch.arange(n_items)
+        if shuffle:
+            all_idx = all_idx[torch.randperm(all_idx.size()[0])]
+        batch_idx = all_idx.split(batch_size)
         for batch in batch_idx:
             _loaded = {}
             for key in data_dict.keys():
@@ -192,7 +190,7 @@ def build_loader(
 def convert_to_tensors(text_indices: "list[list[int]]") -> torch.Tensor:
     max_rows = max([len(batch) for batch in text_indices])
     padded = [batch + [0] * (max_rows - len(batch)) for batch in text_indices]
-    return torch.tensor(padded)
+    return torch.tensor(padded).to(torch.int32)
 
 
 ### 2.1 Design a logistic model with embedding and pooling
@@ -207,7 +205,9 @@ class PooledLogisticRegression(nn.Module):
 
         self.embedding = embedding 
         self.sigmoid = nn.Sigmoid()
-        self.layer_pred = nn.Linear(EMBED_DIM*2,1)
+
+        embed_dim = embedding.weight.shape[1]*2
+        self.layer_pred = nn.Linear(embed_dim,1)
 
     # DO NOT CHANGE THE SECTION BELOW! ###########################
     # # This is to force you to initialize certain things in __init__
@@ -250,8 +250,7 @@ def forward_pass(model: nn.Module, batch: dict, device="cpu"):
     # Every data instance is an input + label pair
     x_premise = convert_to_tensors(batch['premise'])
     x_hypothesis = convert_to_tensors(batch['hypothesis'])
-    y_labels = torch.tensor(batch['label'])
-    return model(x_premise,x_hypothesis),y_labels
+    return model(x_premise,x_hypothesis)
     
 
 
@@ -286,8 +285,8 @@ def f1_score(y: torch.Tensor, y_pred: torch.Tensor, threshold=0.5,epsilon = 1e-7
 def eval_run(
     model: nn.Module, loader: Callable[[], Iterable[dict]], device: str = "cpu"
 ):
-    f1_scores = []
-    running_vloss = 0.0
+    y_true = []
+    y_pred = []
         
     # Set the model to evaluation mode, disabling dropout and using population
     # statistics for batch normalization.
@@ -296,19 +295,13 @@ def eval_run(
     # Disable gradient computation and reduce memory consumption.
     with torch.no_grad():
         for i, data in enumerate(loader()):
-            # Zero your gradients for every batch!
-            optimizer.zero_grad()
 
             # Make predictions for this batch
-            y_labels,y = forward_pass(model,data)
-            vloss = bce_loss(y, y_labels)
-            running_vloss += vloss
-
-            _score = f1_score(y,y_labels)
-            f1_scores.append(_score)
-
-    avg_vloss = running_vloss / (i + 1)
-    return avg_vloss, torch.mean(torch.tensor(f1_scores))
+            y_labels = forward_pass(model,data)
+            y = torch.tensor(data['label'])
+            y_true.append(y)
+            y_pred.append(y_labels)
+    return torch.cat(y_true).to(torch.float32), torch.cat(y_pred).to(torch.float32)
 
 
 def train_loop(
@@ -332,7 +325,8 @@ def train_loop(
             optimizer.zero_grad()
 
             # Make predictions for this batch
-            y_labels,y = forward_pass(model,data)
+            y_labels = forward_pass(model,data)
+            y = torch.tensor(data['label'])
             loss = backward_pass(optimizer,y, y_labels)
 
             # Gather data and report
@@ -342,9 +336,10 @@ def train_loop(
                 print(f'batch {i+1} loss: {last_loss:.3f}')
                 running_loss = 0.
 
-        avg_vloss,f1_score = eval_run(model,valid_loader)
-        print(f'Epoch {epoch}, LOSS train {last_loss:.3f} valid {avg_vloss:.3f}, f1 score {f1_score:.3f}')
-        f1_scores.append(f1_score)
+        y_true,y_pred = eval_run(model,valid_loader)
+        score = f1_score(y_true,y_pred)
+        print(f'Epoch {epoch}, LOSS train {last_loss:.3f},  f1 score {score:.3f}')
+        f1_scores.append(score)
     return f1_scores
 
 
@@ -359,7 +354,8 @@ class ShallowNeuralNetwork(nn.Module):
         self.activation = nn.ReLU()
 
         # linear layers
-        self.ff_layer = nn.Linear(EMBED_DIM*2,hidden_size)
+        embed_dim = embedding.weight.shape[1]*2
+        self.ff_layer = nn.Linear(embed_dim,hidden_size)
         self.layer_pred = nn.Linear(hidden_size,1)
 
     # DO NOT CHANGE THE SECTION BELOW! ###########################
@@ -409,8 +405,9 @@ class DeepNeuralNetwork(nn.Module):
         self.activation = nn.ReLU()
 
         # linear layers
+        embed_dim = embedding.weight.shape[1]*2
         self.ff_layers = nn.ModuleList([
-            nn.Linear(2*EMBED_DIM,hidden_size) if i==0 else nn.Linear(hidden_size, hidden_size) for i in range(num_layers)
+            nn.Linear(embed_dim,hidden_size) if i==0 else nn.Linear(hidden_size, hidden_size) for i in range(num_layers)
         ])
         self.layer_pred = nn.Linear(hidden_size,1)
         self.num_layers = num_layers
