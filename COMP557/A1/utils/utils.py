@@ -100,6 +100,7 @@ def convert_bboxes_normal(
             _, _, z = interpolate_color((u, v, w), triangle)
 
             if z >= depth[x, y, 0]:
+                print(color)
                 depth[x, y] = z
                 pix[x, y, :] = color[-1]
 
@@ -149,3 +150,46 @@ def interpolate_color(barycentric_coords, vertex_colors):
     )
 
     return np.array([component for component in color])
+
+
+def calculate_triangle_normal(triangle):
+    """
+    Calculate the normal vector of a triangle in 3D.
+
+    Parameters:
+        triangle (numpy.ndarray): 2D NumPy array representing a triangle with vertices in rows.
+
+    Returns:
+        numpy.ndarray: Normal vector of the triangle.
+    """
+    if triangle.shape != (3, 3):
+        raise ValueError("Input must be a 2D NumPy array with shape (3, 3).")
+
+    # Form vectors from two edges of the triangle
+    edge1 = triangle[1] - triangle[0]
+    edge2 = triangle[2] - triangle[0]
+
+    # Calculate the cross product to get the normal vector
+    normal = np.cross(edge1, edge2)
+
+    # Normalize the normal vector
+    normal /= np.linalg.norm(normal)
+
+    return normal
+
+
+def calculate_normals(V: np.ndarray, T: np.ndarray, TN: np.ndarray):
+    normals = []
+    for point in T:
+        triangle = []
+
+        # only need two of the indexes
+        for i in range(3):
+            triangle.append(V[point[i]])
+        normal = calculate_triangle_normal(np.stack(triangle))
+        normals.append(normal)
+
+    N = np.stack(normals)
+    rows, cols = N.shape
+    TN = np.tile(np.arange(rows), (cols, 1)).T
+    return N, TN
