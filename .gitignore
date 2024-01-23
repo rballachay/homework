@@ -1,6 +1,7 @@
 *.vscode
 COMP6281/.vscode/settings.json
 __pycache__
+*.mp4
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[cod]

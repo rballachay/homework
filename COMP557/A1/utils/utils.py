@@ -23,7 +23,7 @@ def get_bboxes(points: Tuple[int, int, int], vertices: List[Tuple[int, int, int]
 def project_orthograpic(bboxes: List[np.ndarray]):
     ortho_bboxes = []
     for coords in bboxes:
-        projected = coords[:, :2].astype(int)
+        projected = coords[:, :2]
         ortho_bboxes.append(projected)
 
     return ortho_bboxes
@@ -34,7 +34,8 @@ def draw_boxes(
 ):
 
     for i, box in enumerate(bboxes_ortho):
-        pix_buffer[box[0, 0] : box[1, 0], box[0, 1] : box[1, 1], :] = colors[i, :] / 256
+        box = box.round().astype(int)
+        pix_buffer[box[0, 0] : box[1, 0], box[0, 1] : box[1, 1], :] = colors[i, :] / 255
 
 
 def get_colors(vertices: List[Tuple[int, int, int]]):
@@ -44,22 +45,63 @@ def get_colors(vertices: List[Tuple[int, int, int]]):
 
 
 def convert_bboxes_triangle(
-    bboxes: List[np.ndarray], triangles: List[np.ndarray], pix: np.ndarray
+    bboxes: List[np.ndarray],
+    triangles: List[np.ndarray],
+    pix: np.ndarray,
+    depth: np.ndarray,
 ):
     colors = [(255, 0, 0), (0, 255, 0), (0, 0, 255)]
     assert len(bboxes) == len(triangles)
     for bbox, triangle in list(zip(bboxes, triangles)):
         coords = list(
             itertools.product(
-                range(bbox[0, 0], bbox[1, 0]), range(bbox[0, 1], bbox[1, 1])
+                range(int(np.floor(bbox[0, 0])), int(np.ceil(bbox[1, 0]))),
+                range(int(np.floor(bbox[0, 1])), int(np.ceil(bbox[1, 1]))),
             )
         )
         for x, y in coords:
             u, v, w = cartesian_to_barycentric(x, y, triangle)
-            if any([i <= 0 for i in (u, v, w)]):
+            if any([i < 0 for i in (u, v, w)]):
                 continue
             color = interpolate_color((u, v, w), colors)
-            pix[x, y, :] = color / 255
+
+            # interpolate z value instead of the color
+            _, _, z = interpolate_color((u, v, w), triangle)
+
+            if z >= depth[x, y, 0]:
+                depth[x, y] = z
+                pix[x, y, :] = color / 255
+
+
+def convert_bboxes_normal(
+    bboxes: List[np.ndarray],
+    triangles: List[np.ndarray],
+    pix: np.ndarray,
+    depth: np.ndarray,
+    normals: List[np.ndarray],
+):
+    assert len(bboxes) == len(triangles)
+    for bbox, triangle, normal in list(zip(bboxes, triangles, normals)):
+        coords = list(
+            itertools.product(
+                range(int(np.floor(bbox[0, 0])), int(np.ceil(bbox[1, 0]))),
+                range(int(np.floor(bbox[0, 1])), int(np.ceil(bbox[1, 1]))),
+            )
+        )
+        for x, y in coords:
+            u, v, w = cartesian_to_barycentric(x, y, triangle)
+            if any([i < 0 for i in (u, v, w)]):
+                continue
+
+            # interpolate the normal
+            color = interpolate_color((u, v, w), normal) / 2 + 1 / 2
+
+            # interpolate z value instead of the color
+            _, _, z = interpolate_color((u, v, w), triangle)
+
+            if z >= depth[x, y, 0]:
+                depth[x, y] = z
+                pix[x, y, :] = color[-1]
 
 
 def cartesian_to_barycentric(x, y, triangle):
@@ -106,4 +148,4 @@ def interpolate_color(barycentric_coords, vertex_colors):
         u * vertex_colors[0][2] + v * vertex_colors[1][2] + w * vertex_colors[2][2],
     )
 
-    return np.array([int(component) for component in color])
+    return np.array([component for component in color])

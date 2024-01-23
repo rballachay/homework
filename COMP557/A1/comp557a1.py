@@ -17,7 +17,7 @@ parser.add_argument(
 parser.add_argument(
     "--px", type=int, default=10, help="Size of pixel in on screen framebuffer"
 )
-parser.add_argument("--test", type=int, help="run a numbered unit test", default=2)
+parser.add_argument("--test", type=int, help="run a numbered unit test", default=4)
 args = parser.parse_args()
 ti.init(arch=ti.cpu)  # can also use ti.gpu
 px = args.px  # Size of pixel in on screen framebuffer
@@ -58,7 +58,7 @@ while gui.running:
     Vt = Vt + translate
     Nt = (Ry @ Rx @ Rz @ N.T).T
 
-    tester(T=T, Vt=Vt, pix=pix)
+    tester(T=T, Vt=Vt, pix=pix, depth=depth, N=Nt, TN=TN)
 
     # draw!
     pixti.from_numpy(pix)
