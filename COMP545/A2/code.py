@@ -858,7 +858,7 @@ if __name__ == "__main__":
 
     word = "doctor"
     weat_association = weat_association
-    weat_differential_association = weat_differential_association(
+    _weat_differential_association = weat_differential_association(
         X, Y, A, B, word_to_embedding, weat_association
     )
 
@@ -866,14 +866,21 @@ if __name__ == "__main__":
     debiased_word_to_embedding = debias_word_embedding(
         word, word_to_embedding, gender_subspace
     )
-    debiased_profession_to_embedding = hard_debias(
-        word_to_embedding, gender_attribute_words, 1
-    )
+    #debiased_profession_to_embedding = hard_debias(
+    #    profession_to_embedding, gender_attribute_words, 1
+    #)
 
     # === Section 3.2 ===
-    # direct_bias_professions_debiased = hard_debias(word_to_embedding, gender_attribute_words)
+    debiased_profession_to_embedding = {}
+    for word in profession_to_embedding:
+        embedding = debias_word_embedding(word, profession_to_embedding, gender_subspace)
+        debiased_profession_to_embedding[word] = embedding
 
-    # print(f"DirectBias Professions (debiased): {direct_bias_professions_debiased:.2f}")
+    direct_bias_professions_biased = compute_direct_bias(professions,profession_to_embedding,gender_subspace)
+    direct_bias_professions_debiased = compute_direct_bias(professions,debiased_profession_to_embedding,gender_subspace)
+
+    print(f"DirectBias Professions (biased): {direct_bias_professions_biased:.2f}")
+    print(f"DirectBias Professions (debiased): {direct_bias_professions_debiased:.2f}")
 
     X = [
         "math",
@@ -897,7 +904,52 @@ if __name__ == "__main__":
         "sculpture",
     ]
 
-    # Also run this test for debiased profession representations.
-    p_value = "your work here"
+    debiased_word_to_embedding = hard_debias(
+        word_to_embedding, gender_attribute_words, 1
+    )
 
-    print(f"p-value: {p_value:.2f}")
+    #p_value_biased = p_value_permutation_test(X,Y,A,B,word_to_embedding)
+    #p_value_debiased = p_value_permutation_test(X,Y,A,B,debiased_word_to_embedding)
+
+    #print(f"p-value biased: {p_value_biased:.2f}")
+    #print(f"p-value debiased: {p_value_debiased:.2f}")
+
+    from sklearn.manifold import TSNE
+    import seaborn as sns
+    import pandas as pd
+
+    max_words = compute_extreme_words(
+    words=professions,
+    word_to_embedding=profession_to_embedding,
+    gender_subspace=gender_subspace,
+    k=10,
+    max_=True
+    )
+
+    min_words = compute_extreme_words(
+    words=professions,
+    word_to_embedding=profession_to_embedding,
+    gender_subspace=gender_subspace,
+    k=10,
+    max_=False
+    )
+
+    embeddings = []
+    for word in max_words+min_words:
+        embeddings.append(profession_to_embedding[word])
+    embeddings = np.stack(embeddings,axis=0)
+
+    X_embedded = TSNE(n_components=2, learning_rate='auto',
+                      init='random', perplexity=3).fit_transform(embeddings)
+    
+    data = pd.DataFrame({
+        '1st Dimension':list(X_embedded[:,0]),
+        '2nd Dimension':list(X_embedded[:,1]),
+        'Direction':['max']*10 + ['min']*10
+
+    })
+
+    sns.set_theme()
+    plot = sns.scatterplot(data, x='1st Dimension', y='2nd Dimension',hue='Direction')
+    fig = plot.get_figure()
+    fig.savefig("tsne_gender_bias.png") 
