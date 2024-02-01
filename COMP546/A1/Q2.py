@@ -18,7 +18,7 @@ def construct_image(k, dims=IMG_DIM, n=N):
     image = np.zeros(dims)
     for x in range(dims[0]):
         image[x, :] = 0.5 * (1 + np.sin((2 * np.pi / n) * k * x))
-    return image
+    return image.T
 
 
 def gaussian_kernel_2d(sigma, size):
@@ -37,8 +37,8 @@ def michelson_contrast(image):
 
 
 def rms_contrast(image):
-    image = image[20:-20, 20:-20].flatten()
-    return np.sqrt(np.sum((image - image.mean()) ** 2) / image.shape[0])
+    image = image[20:-20, 20:-20]
+    return image.std()
 
 
 class Questions:
