@@ -114,6 +114,24 @@ def rotate_x(matrix, angle=90):
     
     return rotated_matrix
 
+def rotate_y(matrix, angle=180):
+    # Convert angle to radians
+    theta = np.radians(angle)
+    
+    # Define rotation matrix about y-axis
+    rotation_matrix = np.array([
+        [np.cos(theta), 0, np.sin(theta), 0],
+        [0, 1, 0, 0],
+        [-np.sin(theta), 0, np.cos(theta), 0],
+        [0, 0, 0, 1]
+    ],dtype='f4')
+    
+    # Multiply original matrix by rotation matrix
+    rotated_matrix = np.dot(matrix, rotation_matrix)
+    
+    return rotated_matrix
+
+
 class Body:
 	
     def __init__(self,pos,rotorder,prog,vao):
@@ -142,6 +160,9 @@ class Body:
         M[0:3,3] = self.pos
 
         M_monkey = self._rotate_monkey(M, t)
+
+        if self.rotorder is None:
+            M_monkey = rotate_y(M_monkey)
         
         self.prog['M'].write( M_monkey.T.flatten() )
 
@@ -151,24 +172,27 @@ class Body:
         self.prog['diffuse_color']  = (0.5,0.5,0.5)
         self.vao['monkey'].render()
 
-        M = rotate_x(M)
+        if self.rotorder is not None:
+            M = rotate_x(M)
 
-        # change the starting displacement based on how many letters there are 
-        M[0,3]+=(-1.5 + ((4-len(self.rotorder))*0.5) + (len(self.rotorder)-3)*.25)
+            # change the starting displacement based on how many letters there are 
+            M[0,3]+=(-1.5 + ((4-len(self.rotorder))*0.5) + (len(self.rotorder)-3)*.25)
 
-        # offset 1.5 units below the monkey head
-        M[1,3]-=1.5
+            # offset 1.5 units below the monkey head
+            M[1,3]-=1.5
 
-        for letter in self.rotorder:
-            M[0,3]+=.5
-            self.prog['M'].write( M.T.flatten() ) # transpose and flatten to get in Opengl Column-majfor format
-            self.prog['diffuse_color'] = self.colors.get(letter) 
-            self.vao[letter].render()
+            for letter in self.rotorder:
+                M[0,3]+=.5
+                self.prog['M'].write( M.T.flatten() ) # transpose and flatten to get in Opengl Column-majfor format
+                self.prog['diffuse_color'] = self.colors.get(letter) 
+                self.vao[letter].render()
 
     def _rotate_monkey(self, M, t):
         rotation_transform = np.eye(4,dtype='f4')
         # select 
-        if any([i in self.rotorder for i in ['X','Y','Z']]):
+        if self.rotorder is None:
+            rotation = np.eye(3, dtype='f4')
+        elif any([i in self.rotorder for i in ['X','Y','Z']]):
             rotation = rotation_interpolation(self.rotations[:,0],self.rotations[:,1],t,self.rotorder)
         elif self.rotorder=='RL':
             r1 = quat_to_R(self.rotations[:,0])
@@ -208,7 +232,7 @@ class Body:
             quat = self.rotations[:,1]
             rotation = quat_to_R(quat)
         else:
-            raise Exception("Unaccepted rotation")
+            raise Exception(f"Rotorder of {self.rotorder} not accepted")
 
 
         rotation_transform[:3,:3] = rotation
@@ -244,6 +268,13 @@ class HelloWorld(mglw.WindowConfig):
         self.cube_vao = self.ctx.vertex_array(self.prog, [(vbo, '3f', 'in_position')], index_buffer=ibo, mode=mgl.LINES)
 
     def draw_wire_box(self):
+        self.prog['enable_lighting'] = False
+        M=np.eye(4,dtype='f4')
+
+        V_inv = np.linalg.inv(self.V1)
+        P_inv = np.linalg.inv(self.P1)
+        
+        self.prog['M'].write( (P_inv@V_inv@M.T).flatten() )
         self.cube_vao.render()
 
     def __init__(self, **kwargs):
@@ -258,11 +289,15 @@ class HelloWorld(mglw.WindowConfig):
         self.vao = {}
         for a in ['monkey','X','Y','Z','R','L','N','Q','S','F','A','B']:
             self.scene[a] = self.load_scene(a+".obj")
-            self.vao[a] = self.scene[a].root_nodes[0].mesh.vao.instance(self.prog)      
+            self.vao[a] = self.scene[a].root_nodes[0].mesh.vao.instance(self.prog)  
+               
         self.setup_wire_box()
 
         # setup a grid of bodies, nicely spaced for viewing
         self.bodies = []
+
+        # add monkey at origin of perspective transformation
+        self.bodies.append( Body( np.array([0,0,40]), None, self.prog, self.vao ) )
         for i in range(len(rotation_type)):
             c = 4*((i % 5) - 2)
             r = 4*(-(i // 5) + 1.75)
@@ -336,5 +371,6 @@ class HelloWorld(mglw.WindowConfig):
             b.render(t)
 
         ## TODO you'll also need some code to draw the viewer and frustum!
+        self.draw_wire_box()
     
 HelloWorld.run()
