@@ -1,5 +1,7 @@
-## TODO Enter your name and McGill ID here
-
+"""
+Name: Riley Ballachay
+Student Number: 261019324
+"""
 import moderngl_window as mglw
 import moderngl as mgl
 import numpy as np
@@ -34,9 +36,6 @@ def slerp(q1, q2, t):
     q2 /= np.linalg.norm(q2)
 
     dot = np.dot(q1, q2)
-    if dot < 0.0:
-        q1 = -q1
-        dot = -dot
 
     if dot > 0.9995:
         result = q1 + t * (q2 - q1)
@@ -234,7 +233,6 @@ class Body:
         else:
             raise Exception(f"Rotorder of {self.rotorder} not accepted")
 
-
         rotation_transform[:3,:3] = rotation
         M_monkey = np.dot(M, rotation_transform)
         return M_monkey
@@ -273,7 +271,7 @@ class HelloWorld(mglw.WindowConfig):
 
         V_inv = np.linalg.inv(self.V1)
         P_inv = np.linalg.inv(self.P1)
-        
+
         self.prog['M'].write( (P_inv@V_inv@M.T).flatten() )
         self.cube_vao.render()
 

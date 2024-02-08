@@ -475,8 +475,9 @@ class CBOW(nn.Module):
 
     def forward(self, x: torch.Tensor):
         _x = self.emb(x)
+        _x = torch.sum(_x, axis=1)
         _x = self.proj(_x)
-        return _x.sum(axis=1)
+        return _x
 
 
 def compute_topk_similar(
