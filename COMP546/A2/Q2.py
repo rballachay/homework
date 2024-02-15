@@ -53,7 +53,7 @@ class Questions:
 
         for i, key in enumerate(("response", "sin", "cos")):
             r_dict = results.iloc[results[key].idxmax()].to_dict()
-
+            print(f"for {key}, {r_dict['k']}")
             img = construct_image(r_dict["k"])
             _cos = convolve2d(img, cosGabor, mode="valid")
             _sin = convolve2d(img, sinGabor, mode="valid")
@@ -65,7 +65,7 @@ class Questions:
                 img = _sin
 
             ax[0, i].set_title(
-                f"{key.capitalize().replace('Response','Complex')} Response",
+                f"{key.capitalize().replace('Response','Complex')} Response, k={r_dict['k']}",
                 fontdict={"fontsize": 17, "fontweight": 20},
             )
             ax[0, i].imshow(img, cmap=plt.cm.viridis)
@@ -78,6 +78,7 @@ class Questions:
 
         # plot the lineplot
         _, ax = plt.subplots(1, 1, dpi=200)
+
         plot = sns.lineplot(data=results, x="k", y="response", ax=ax)
 
         return fig, plot.get_figure()
@@ -97,13 +98,16 @@ class Questions:
 
             if key == "response":
                 img = response
+                mean_response = np.sqrt((_cos.sum())**2+(_sin.sum())**2)
             elif key == "cos":
                 img = _cos
+                mean_response = _cos.sum()
             elif key == "sin":
                 img = _sin
+                mean_response = _sin.sum()
 
             ax[0, i].set_title(
-                f"{key.capitalize().replace('Response','Complex')} Response",
+                f"{key.capitalize().replace('Response','Complex')} Response: {mean_response:.2f}",
                 fontdict={"fontsize": 17, "fontweight": 20},
             )
             ax[0, i].imshow(img, cmap=plt.cm.viridis)
@@ -131,8 +135,29 @@ if __name__ == "__main__":
     part_b_fig = questions.part_b
     part_b_fig.savefig(PART_B_FIG)
 
+
     """
-    image = construct_image(128)
-    image = Image.fromarray(np.uint8(image) * 255)
-    image.save("temp.png")
+    sns.set_theme()
+    image = construct_image(37,(256,256))
+    (cosGabor, sinGabor) = make2DGabor(32, 4, 0)
+
+    cosSlice = cosGabor[cosGabor.shape[0]//2,:]
+    cosSlice = np.tile(cosSlice,256//32)/cosSlice.max()
+
+    sinSlice = sinGabor[sinGabor.shape[0]//2,:]
+    sinSlice = np.tile(sinSlice,256//32)/sinSlice.max()
+
+    imgSlice = image[image.shape[0]//2,:]
+
+    data = pd.DataFrame({
+        'location':np.tile(np.arange(256),3),
+        'value':np.concatenate([imgSlice,sinSlice,cosSlice],axis=0),
+        'type':['image']*256+['sin']*256+['cos']*256
+    })    
+
+    sns.set(rc={'figure.figsize':(15,7.5)})
+    plot = sns.lineplot(data=data,x='location',y='value',hue='type')
+    fig = plot.get_figure()
+    plt.tight_layout()
+    fig.savefig('results/q2/part_a_sliced_filter.png',dpi=200)
     """

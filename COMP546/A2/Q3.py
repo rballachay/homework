@@ -43,8 +43,6 @@ def get_binocular(theta, disparity):
 
 def get_stereo_images(disparity, n=N):
     img_right = np.random.randint(0, 2, (n, n))
-    # img_right = np.zeros((n,n))
-    # img_right[:,:img_right.shape[0]//2] = 1
     img_left = np.roll(img_right, disparity, axis=1)
     return img_right, img_left
 
@@ -88,11 +86,12 @@ class Questions:
 
         plot = sns.relplot(
             data=results,
-            kind="scatter",
+            kind="line",
             x="gabor_shift",
             y="response",
             col="img_shift",
             hue="theta",
+            palette=sns.color_palette()
         )
 
         return plot.fig
