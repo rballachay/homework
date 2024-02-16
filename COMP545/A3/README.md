@@ -245,4 +245,19 @@ Even though the top k was set to 5 and the top P was set to 0.5, the number of v
 
 You can see that the LSTM trains faster than the RNN (in terms of number of epochs, in terms of clock time, the LSTM was much slower to train than the RNN). It also achieved a better loss for both corpus after 100 epochs. I would say that the strength of the LSTM is that it is a stronger model for this task, but it is much slower and complex than the RNN.
 
-## Q1: Character RNN (CharRNN)
+## Q3: ShallowBiLSTM vs unidirectional LSTM
+
+The number of epochs was modified from 32 to 320 as training was taking too long and 32 wasn't using enough of the GPU memory to be efficient. All models were trained with 2 layers. See below the results from all five models, for validation set on the left and testing set on the right. The dotted lines show models trained with the glove dataset, and solid lines without. The blue line shows the true LSTM model from pytorch, adapted for bidirectionality, the orange line shows the true unilayer LSTM and green shows the shallow bidirectional LSTM. All the bi-directional models seem to use more memory and take more training time than the unidirectional. 
+
+<img src="results/accuracy_for_lstm_models.png" alt="char_rnn" width="800"/>
+
+The final results from the test set (all compared at the tenth epoch) are as follows:
+
+#### Ranked Accuracy
+1. BILSTM - 72.89 %
+2. Shallow BILSTM with glove - 71.39 %
+3. Shallow BILSTM - 70.99 %
+4. LSTM with glove - 70.40 %
+5. LSTM - 70.23 %
+
+The results show that the real bidirectional LSTM is the best model, and that the models trained with glove are significantly better than those without. 
