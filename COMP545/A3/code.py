@@ -527,7 +527,7 @@ def run_snli(model, use_glove=True):
     glove_embeddings = create_embedding_matrix(index_map,emb_dict,glove.shape[1])
 
     # training code
-    model = model(len(index_map),100, 1, 3)
+    model = model(len(index_map),100, 2, 3)
 
     if use_glove:
         model.embedding_layer.from_pretrained(glove_embeddings, freeze=False, padding_idx=0)
