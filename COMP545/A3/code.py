@@ -384,19 +384,16 @@ def create_embedding_matrix(word_index, emb_dict, emb_dim):
     return torch.from_numpy(embeddings).float()
 
 def evaluate(model, dataloader, index_map):
-
-    model.eval()
-
     y = []
     y_hat = []
     for batch in dataloader:
         premise = tokens_to_ix(tokenize(batch['premise']),index_map)
         hypothesis = tokens_to_ix(tokenize(batch['hypothesis']),index_map)
-        preds = model.forward(premise,hypothesis)
+        preds = model.forward(premise,hypothesis).detach().to('cpu')
         preds = list(torch.argmax(preds, dim=1))
 
         y_hat.extend(preds)
-        y.extend(list(batch['label']))
+        y.extend(list(batch['label'].detach().to('cpu')))
 
     return sum(1 for x,y in zip(y,y_hat) if x == y) / len(y)
 
@@ -418,8 +415,8 @@ class UniLSTM(nn.Module):
 
     def forward(self, a, b):
         (a, b, a_r, b_r)  = fix_padding(a, b)
-        a = self.embedding_layer(a)
-        b = self.embedding_layer(b)
+        a = self.embedding_layer(a.to(device))
+        b = self.embedding_layer(b.to(device))
         _, (_, a) = self.lstm(a)
         _, (_, b) = self.lstm(b)
 
@@ -434,7 +431,7 @@ class UniLSTM(nn.Module):
 class ShallowBiLSTM(nn.Module):
     def __init__(self, vocab_size, hidden_dim, num_layers, num_classes):
         super(ShallowBiLSTM, self).__init__()
-        self.hidden_dim = hidden_dim
+        self.hidden_dim = hidden_dim//2
         self.num_classes = num_classes
         self.vocab_size = vocab_size
         self.num_layers = num_layers
@@ -442,18 +439,18 @@ class ShallowBiLSTM(nn.Module):
         self.embedding_layer = nn.Embedding(self.vocab_size, self.hidden_dim, padding_idx=0)
 
         # your code here
-        self.lstm_forward = nn.LSTM(hidden_dim,hidden_dim, num_layers, batch_first=True)
-        self.lstm_backward = nn.LSTM(hidden_dim,hidden_dim, num_layers, batch_first=True)
+        self.lstm_forward = nn.LSTM(self.hidden_dim,self.hidden_dim//2, num_layers, batch_first=True)
+        self.lstm_backward = nn.LSTM(self.hidden_dim,self.hidden_dim//2, num_layers, batch_first=True)
 
-        self.int_layer = nn.Linear(4*self.hidden_dim,self.hidden_dim)
+        self.int_layer = nn.Linear(2*self.hidden_dim,self.hidden_dim)
         self.out_layer = nn.Linear(self.hidden_dim, self.num_classes)
 
     def forward(self, a, b):
         (a, b, a_r, b_r)  = fix_padding(a, b)
-        a = self.embedding_layer(a)
-        b = self.embedding_layer(b)
-        a_r = self.embedding_layer(a_r)
-        b_r = self.embedding_layer(b_r)
+        a = self.embedding_layer(a.to(device))
+        b = self.embedding_layer(b.to(device))
+        a_r = self.embedding_layer(a_r.to(device))
+        b_r = self.embedding_layer(b_r.to(device))
         _, (_,a) = self.lstm_forward(a)
         _, (_,b) = self.lstm_forward(b)
         _, (_,a_r) = self.lstm_backward(a_r)
@@ -464,6 +461,36 @@ class ShallowBiLSTM(nn.Module):
         ab = nn.functional.relu(ab)
         ab = self.out_layer(ab)
         return ab
+
+class BiLSTM(nn.Module):
+    def __init__(self, vocab_size, hidden_dim, num_layers, num_classes):
+        super(BiLSTM, self).__init__()
+        self.hidden_dim = hidden_dim
+        self.num_classes = num_classes
+        self.vocab_size = vocab_size
+        self.num_layers = num_layers
+
+        self.embedding_layer = nn.Embedding(self.vocab_size, self.hidden_dim, padding_idx=0)
+
+        # your code here
+        self.lstm = nn.LSTM(hidden_dim, hidden_dim, num_layers, batch_first=True, bidirectional=True)
+        self.int_layer = nn.Linear(4*self.hidden_dim,self.hidden_dim)
+        self.out_layer = nn.Linear(self.hidden_dim, self.num_classes)
+
+    def forward(self, a, b):
+        (a, b, a_r, b_r)  = fix_padding(a, b)
+        a = self.embedding_layer(a.to(device))
+        b = self.embedding_layer(b.to(device))
+        _, (_, a) = self.lstm(a)
+        _, (_, b) = self.lstm(b)
+
+        # just want the very last of the sequence
+        ab = torch.cat((a[-1], a[-2], b[-1],b[-2]), dim=-1)
+        ab = self.int_layer(ab)
+        ab = nn.functional.relu(ab)
+        ab = self.out_layer(ab)
+        return ab
+
 
 def run_snli(model, use_glove=True):
     dataset = load_dataset("snli")
@@ -476,19 +503,19 @@ def run_snli(model, use_glove=True):
     # code to make dataloaders
     dataloader_train = DataLoader(
         train_filtered,
-        batch_size=32,
+        batch_size=320,
         shuffle=True,
     )
 
     dataloader_valid = DataLoader(
         valid_filtered,
-        batch_size=32,
+        batch_size=320,
         shuffle=True,
     )
 
     dataloader_test = DataLoader(
         test_filtered,
-        batch_size=32,
+        batch_size=320,
         shuffle=True,
     )
 
@@ -500,24 +527,28 @@ def run_snli(model, use_glove=True):
     glove_embeddings = create_embedding_matrix(index_map,emb_dict,glove.shape[1])
 
     # training code
-    model = model(len(word_counts),100, 2, 3)
+    model = model(len(index_map),100, 1, 3)
 
     if use_glove:
-        model.embedding_layer.from_pretrained(glove_embeddings)
+        model.embedding_layer.from_pretrained(glove_embeddings, freeze=False, padding_idx=0)
 
-    #evaluate(model, dataloader_train, index_map)
+    # move the model
+    model.to(device)
+
     loss_fn = nn.CrossEntropyLoss()
-    optimizer = torch.optim.Adam(model.parameters(),lr=1e-3)
+    optimizer = torch.optim.Adam(model.parameters(),lr=1e-2)
 
+    results = []
     running_loss=[]
-
-    for epoch in range(10):
+    current_acc = -np.inf
+    patience = 0
+    for epoch in range(15):
         model.train()
         loss = []
         for batch in dataloader_train:
             premise = tokens_to_ix(tokenize(batch['premise']),index_map)
             hypothesis = tokens_to_ix(tokenize(batch['hypothesis']),index_map)
-            label = batch['label']
+            label = batch['label'].to(device)
             preds = model.forward(premise,hypothesis)
             loss = loss_fn(preds, label)
 
@@ -530,30 +561,40 @@ def run_snli(model, use_glove=True):
 
             running_loss.append(int(loss))
 
+        print("STARTING EVAL\n\n")
         model.eval()
         with torch.no_grad():
             valid_acc = evaluate(model,dataloader_valid,index_map)
-            test_acc = evaluate(model,dataloader_valid,index_map)     
+            test_acc = evaluate(model,dataloader_test,index_map)     
         
-        running_loss.append({
+        results.append({
             'train':np.mean(running_loss),
             'test':test_acc,
             'valid':valid_acc,
-            'epoch':epoch
+            'epoch':epoch+1
         })
 
-    running_loss = pd.DataFrame(running_loss)
-    running_loss.to_csv('results/snli_results.csv')
+        if valid_acc<current_acc:
+            patience+=1
+            if patience>1:
+                print("Validation accuracy has gone down. Breaking out of loop")
+                break
+        else:
+            patience = 0
+
+        current_acc = valid_acc
+
+    return pd.DataFrame(results)
 
 
 
-def run_snli_lstm():
+def run_snli_lstm(glove=True):
     model_class = UniLSTM
-    run_snli(model_class)
+    return run_snli(model_class, glove)
 
-def run_snli_bilstm():
+def run_snli_bilstm(glove=True):
     model_class = ShallowBiLSTM # fill in the classs name of the model (to initialize within run_snli)
-    run_snli(model_class)
+    return run_snli(model_class, glove)
 
 
 def __part_1():
@@ -583,8 +624,52 @@ def __part_1():
 
 
 def __part_2():
-    run_snli_lstm()
-    # run_snli_bilstm()
+    import os
+    all_results = []
+
+    path = f'results/snli_bilstm_results.csv'
+
+    if not os.path.exists(path):
+        results = run_snli(BiLSTM, True)
+        results.to_csv(f'results/snli_bilstm_results.csv')
+    else:
+        results = pd.read_csv(path)
+        results['model'] = 'lstm/bilstm'
+        results['glove'] = True
+
+    all_results.append(results)
+
+    for glove in [True, False]:
+        
+        path = f'results/snli_lstm_results{"_glove" if glove else ""}.csv'
+        if not os.path.exists(path):
+            results = run_snli_lstm(glove)
+            results.to_csv(path)
+        else:
+            results = pd.read_csv(path)
+            results['model'] = 'lstm'
+            results['glove'] = glove
+
+        all_results.append(results)
+        
+        path = f'results/snli_bilstm_shallow_results{"_glove" if glove else ""}.csv'
+        if not os.path.exists(path):
+            results = run_snli_bilstm(glove)
+            results.to_csv(path)
+        else:
+            results = pd.read_csv(path)
+            results['model'] = 'bilstm'
+            results['glove'] = glove
+
+        all_results.append(results)
+
+    all_results = pd.concat(all_results,axis=0).reset_index(drop=True)
+    all_results = pd.melt(all_results, id_vars=['epoch','model','glove'], 
+                          value_vars=['valid','test'],var_name='stage',value_name='accuracy')
+    sns.set_theme()
+    plot = sns.relplot(data=all_results,x='epoch',y='accuracy',hue='model',style='glove',col='stage',kind='line')
+    plot.fig.savefig('results/accuracy_for_lstm_models.png',dpi=200)
+
 
 if __name__ == '__main__':
     #__part_1()
