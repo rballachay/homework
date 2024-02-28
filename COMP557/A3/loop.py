@@ -25,8 +25,9 @@ def loop_subdivide(heds):
 	for f in heds.faces:
 		he = f.he
 		for _ in range(3):
-			he.child1.o = he.o.child2
-			he.child2.o = he.o.child1
+			if he.o is not None:
+				he.child1.o = he.o.child2
+				he.child2.o = he.o.child1
 			he=he.n
 
 	for f in heds.faces:
@@ -88,31 +89,55 @@ def loop_subdivide(heds):
 	return heds.child        
 
 def subdivide_vertex( he ):
+	boundary=False
 	# TODO subdivide the vertex, and append to heds.child.verts
-	vertexes = {'center':he.v, 'outside':[he.o.v]}
+	vertexes = {'center':he.v, 'outside':[]}
+	if he.o is not None:
+		vertexes['outside'].append(he.o.v)
 	
 	he_new = he.n
 	# get all the edges incident to this vertex
 	while he_new.o!=he:
 		vertexes['outside'].append(he_new.v)
+
+		if he_new.o is None:
+			boundary=True
+			break
 		he_new=he_new.o
 		he_new = he_new.n
 
-	degree = len(vertexes['outside'])
-	beta = 3/(8*degree) if degree>3 else 3/16
+	if boundary is True:
+		he_new = he
 
-	center = (1-degree*beta)*vertexes['center'].p
-	outside = np.sum([beta*v.p for v in vertexes['outside']],axis=0)
-	return Vertex(center+outside)
+		# this points to the source vertex for the current vertex
+		while he_new.o is not None:
+			he_new = he_new.o.n.n
+		
+		p = (3/4)*vertexes['center'].p + (1/8)*vertexes['outside'][-1].p + (1/8)*he_new.n.n.v.p
+		
+	else:
+		degree = len(vertexes['outside'])
+		beta = 3/(8*degree) if degree>3 else 3/16
+
+		center = (1-degree*beta)*vertexes['center'].p
+		outside = np.sum([beta*v.p for v in vertexes['outside']],axis=0)
+		p=center+outside
+	
+	
+	return Vertex(p)
 
 def subdivide_edge( he ):
 	end_v = he.v.p
 	start_v = he.n.n.v.p
-	top_v = he.n.v.p
-	bottom_v = he.o.n.v.p
-
-	p = (3/8)*start_v+(3/8)*end_v+(1/8)*top_v+(1/8)*bottom_v
+	if he.o is None:
+		p = (1/2)*start_v+(1/2)*end_v
+	else:
+		top_v = he.n.v.p
+		bottom_v = he.o.n.v.p
+		p = (3/8)*start_v+(3/8)*end_v+(1/8)*top_v+(1/8)*bottom_v
+	
 	v = Vertex(p)
+
 	child1=HalfEdge()
 	child1.v = v
 	child1.parent = he
@@ -125,17 +150,48 @@ def subdivide_edge( he ):
 
 def compute_limit_normal( v ):
 	# TODO: given Vertex v, compute and set the limit normal 
+	boundary=False
 	he = v.he
-	vertices=[he.o.v]
+
+	vertices = []
 
 	he_new = he.n
 	while he_new.o!=he:
 		vertices.append(he_new.v)
+		if he_new.o is None:
+			boundary=True
+			break
 		he_new=he_new.o
 		he_new = he_new.n
 
-	k = len(vertices)
-	t1 = np.sum([np.cos(2*np.pi*i/k)*vertices[i].p for i in range(k)],axis=0)
-	t2 = np.sum([np.sin(2*np.pi*i/k)*vertices[i].p for i in range(k)],axis=0)
+	if not boundary:
+		vertices.insert(0, he.o.v)
+		k = len(vertices)
+		t1 = np.sum([np.cos(2*np.pi*i/k)*vertices[i].p for i in range(k)],axis=0)
+		t2 = np.sum([np.sin(2*np.pi*i/k)*vertices[i].p for i in range(k)],axis=0)
+	else:
+		he_new = he
+		vertices.insert(0,he.n.n.v)
+		while he_new.o is not None:
+			he_new = he_new.o.n.n
+			vertices.insert(0,he_new.n.n.v)
+
+		k = len(vertices)
+		t2 = vertices[0].p-vertices[1].p
+
+		if k==2:
+			t1 = vertices[0].p+vertices[1].p-2*v.p
+		elif k==3:
+			t1 = vertices[2].p - vertices[1].p
+		elif k>=4:
+			theta = np.pi/(k-1)
+			
+			t1 = np.sin(theta)*(vertices[0].p+vertices[-1].p) + (2*np.cos(theta)-2)*np.sum([np.sin(theta*i)*vertices[i].p for i in range(1,k-1)],axis=0)
+
+			if k==5:
+				t2=t1
+				t1=vertices[0].p-vertices[1].p
+
+
 	cross = np.cross(t2,t1)
 	return  cross / np.sqrt(np.sum(cross**2))
