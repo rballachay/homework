@@ -8,17 +8,19 @@ def loop_subdivide(heds):
 		# TODO subdivide the vertex, and append to heds.child.verts
 		v_new = subdivide_vertex(v.he)
 		v.child = v_new
-		v_new.he = v.he
 		heds.child.verts.append(v_new)
+
 	for f in heds.faces:
 		# TODO subdivide edges, if not already done, add new vertex to list
 		he = f.he
 		for _ in range(3):
 			child1, child2, v = subdivide_edge(he)
 			he.child1 = child1
+			he.child1.v = v
 			he.child2 = child2
-			he=he.n
+			he.v.child.he=child2
 			heds.child.verts.append(v)
+			he=he.n
 
 	for f in heds.faces:
 		he = f.he
@@ -36,12 +38,13 @@ def loop_subdivide(heds):
 		for _ in range(3):
 			# this is the first vertex of the new edge
 			v1 = he.child1.v
-
 			v2 = he.n.n.child1.v
 
 			he_1 = HalfEdge()
-			new_face = Face(he.child1.o)
+			new_face = Face(he_1)
 			he_1.v = v2
+			v2.he = he_1
+			
 			he_1.f = new_face
 			he.child1.f = new_face
 			he_1.n = he.n.n.child2
@@ -49,6 +52,8 @@ def loop_subdivide(heds):
 			he.n.n.child2.f = new_face
 			he.child1.n = he_1
 			he_1.parent = he
+
+			# i have no idea why these need to be set like this
 			he.child1.v.he = he_1
 
 			he_2 = HalfEdge()
@@ -58,6 +63,9 @@ def loop_subdivide(heds):
 			he_2.o = he_1
 			he_1.o = he_2
 
+			# i have no idea why these need to be set like this
+			he.child1.v.he=he_2
+
 			half_edges_2.append(he_2)
 
 			# append random half edge from face
@@ -65,17 +73,17 @@ def loop_subdivide(heds):
 			he=he.n
 		
 		final_face = Face(he_2)
-
 		half_edges_2[0].n = half_edges_2[1] 
 		half_edges_2[0].f = final_face
 		half_edges_2[1].n = half_edges_2[2] 
 		half_edges_2[1].f = final_face
 		half_edges_2[2].n = half_edges_2[0] 
-		half_edges_2[1].f = final_face
+		half_edges_2[2].f = final_face
 		heds.child.faces.append(final_face)
 
 	for v in heds.child.verts:
-		compute_limit_normal( v )
+		n = compute_limit_normal( v )
+		v.n = n
 
 	return heds.child        
 
@@ -106,9 +114,9 @@ def subdivide_edge( he ):
 	p = (3/8)*start_v+(3/8)*end_v+(1/8)*top_v+(1/8)*bottom_v
 	v = Vertex(p)
 	child1=HalfEdge()
-	v.he=child1
 	child1.v = v
 	child1.parent = he
+	v.he=child1
 
 	child2=HalfEdge()
 	child2.v = he.v.child
@@ -117,4 +125,17 @@ def subdivide_edge( he ):
 
 def compute_limit_normal( v ):
 	# TODO: given Vertex v, compute and set the limit normal 
-	return
+	he = v.he
+	vertices=[he.o.v]
+
+	he_new = he.n
+	while he_new.o!=he:
+		vertices.append(he_new.v)
+		he_new=he_new.o
+		he_new = he_new.n
+
+	k = len(vertices)
+	t1 = np.sum([np.cos(2*np.pi*i/k)*vertices[i].p for i in range(k)],axis=0)
+	t2 = np.sum([np.sin(2*np.pi*i/k)*vertices[i].p for i in range(k)],axis=0)
+	cross = np.cross(t2,t1)
+	return  cross / np.sqrt(np.sum(cross**2))

@@ -36,6 +36,8 @@ class HEDS:
 		self.faces = []
 		if len(V)==0: return
 		# TODO: create vertex and face lists along with the half edge data structure
+		#V=np.random.permutation(V)
+		F=np.random.permutation(F)
 		for v in V:
 			_vertex = Vertex(v)
 			self.verts.append(_vertex)

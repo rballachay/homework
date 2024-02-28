@@ -17,7 +17,9 @@ def main():
 	if psim.Button('opposite') and current_he is not None:
 		if current_he.o is not None:
 			current_he = current_he.o
-			ps_he.update_node_positions( current_he.get_curve_nodes() )     
+			ps_he.update_node_positions( current_he.get_curve_nodes() )   
+		else:
+			raise Exception('opposite is none')     
 	if psim.Button('child 1') and current_he is not None:
 		if current_he.child1 is not None:
 			current_he = current_he.child1
@@ -33,8 +35,8 @@ def main():
 			ps_he.update_node_positions( current_he.get_curve_nodes() )
 		
 parser = argparse.ArgumentParser()
-parser.add_argument('-f', '--file', type=str, default='data/ico-sphere-tris.obj')
-parser.add_argument('-l', '--levels', type=int, default=5)
+parser.add_argument('-f', '--file', type=str, default='data/bunny.obj')
+parser.add_argument('-l', '--levels', type=int, default=3)
 args = parser.parse_args()
 
 ps.init()
@@ -50,7 +52,7 @@ if len(VS) > 0:
 	heds[0].ps_mesh = ps.register_surface_mesh('L0 HEDS', VS, FS, enabled=True, color=(0.5, 0.5, 1),transparency=0.3)
 
 for i in range(1,args.levels+1):
-	heds.append( loop_subdivide( heds[i-1] ) )
+	heds.append( loop_subdivide( heds[i-1] ))
 	even_V = heds[i-1].get_even_verts()
 	if len(even_V) > 0: heds[i-1].ps_even = ps.register_point_cloud('L'+str(i)+' Even Verts', even_V, enabled=False, color=(1, 0, 0), radius=0.01)
 	odd_V = heds[i-1].get_odd_verts()
