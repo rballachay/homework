@@ -7,7 +7,7 @@ import torch.nn as nn
 import torch.nn.functional as F
 from torch.utils.data import DataLoader
 from tqdm.auto import tqdm
-import transformers
+import transformers 
 
 # ######################## PART 1: PROVIDED CODE ########################
 
@@ -102,8 +102,8 @@ class CustomDistilBert(nn.Module):
 
         # TODO: your work below
         self.distilbert = transformers.DistilBertModel.from_pretrained("distilbert-base-uncased")
-        self.tokenizer = transformers.AutoDistilBertTokenizerModel.from_pretrained('distilbert-base-uncased')    
-        self.pred_layer = nn.Linear(self.tokenizer.vocab_size, 1)
+        self.tokenizer = transformers.DistilBertTokenizer.from_pretrained('distilbert-base-uncased')    
+        self.pred_layer = nn.Linear(self.distilbert.config.hidden_size, 1)
         self.sigmoid = nn.Sigmoid()
         self.criterion = nn.BCELoss()
 
@@ -126,13 +126,13 @@ class CustomDistilBert(nn.Module):
 
     def assign_optimizer(self, **kwargs):
         # TODO: your work below
-        return torch.optim.SGD(self.parameters(),**kwargs)
+        return torch.optim.Adam(self.parameters(),**kwargs)
 
     def slice_cls_hidden_state(
         self, x: transformers.modeling_outputs.BaseModelOutput
     ) -> torch.Tensor:
-        # TODO: your work below
-        pass
+        last_hidden_state = x.last_hidden_state
+        return last_hidden_state[:,0,:]
 
     def tokenize(
         self,
@@ -142,24 +142,27 @@ class CustomDistilBert(nn.Module):
         truncation: bool = True,
         padding: bool = True,
     ):
-        # TODO: your work below
-        pass
+        return  self.tokenizer(premise, hypothesis, return_tensors='pt', 
+                               padding=padding, truncation=truncation, max_length=max_length)
 
     def forward(self, inputs: transformers.BatchEncoding):
-        # TODO: your work below
-        pass
-
+        outputs = self.distilbert(**inputs)
+        last_hidden_state = self.slice_cls_hidden_state(outputs)
+        preds = self.pred_layer(last_hidden_state)
+        logits = self.sigmoid(preds)
+        max_prob, _ = logits.max(dim=1)
+        return max_prob.squeeze()
 
 # ######################## PART 2: YOUR WORK HERE ########################
 def freeze_params(model):
-    # TODO: your work below
-    pass
+    for param in model.parameters():
+        param.requires_grad = False
 
 
 def pad_attention_mask(mask, p):
-    # TODO: your work below
-    pass
-
+    #<2,18>
+    attention_mask_padded = torch.nn.functional.pad(mask, (p, 0),value=1)
+    return attention_mask_padded
 
 class SoftPrompting(nn.Module):
     def __init__(self, p: int, e: int):
@@ -170,70 +173,81 @@ class SoftPrompting(nn.Module):
         self.prompts = torch.randn((p, e), requires_grad=True)
         
     def forward(self, embedded):
-        # TODO: your work below
-        pass
+        prompts_broadcast = self.prompts.expand(embedded.size(0), self.p, self.e)  # Shape: [B, L, E]
+        return torch.cat([prompts_broadcast,embedded],axis=1)
 
 
 # ######################## PART 3: YOUR WORK HERE ########################
 
 def load_models_and_tokenizer(q_name, a_name, t_name, device='cpu'):
-    # TODO: your work below
-    pass
-    # return q_enc, a_enc, tokenizer
+    q_enc = transformers.AutoModel.from_pretrained(q_name).to(device)
+    a_enc = transformers.AutoModel.from_pretrained(a_name).to(device)
+    tokenizer = transformers.AutoTokenizer.from_pretrained(t_name)
+    return q_enc, a_enc, tokenizer
     
 
 def tokenize_qa_batch(tokenizer, q_titles, q_bodies, answers, max_length=64) -> transformers.BatchEncoding:
-    # TODO: your work below.
-    pass
-    
-    # return q_batch, a_batch
+    questions = [(qt,qb) for qt,qb in zip(q_titles,q_bodies)]
+    q_batch = tokenizer(questions,padding=True, max_length=max_length, truncation=True, return_tensors='pt')
+    a_batch = tokenizer(answers,padding=True, max_length=max_length, truncation=True, return_tensors='pt')
+    return q_batch, a_batch
 
 def get_class_output(model, batch):
-    # Since this is similar to a previous question, it is left ungraded
-    # TODO: your work below.
-    pass
+    return model(**batch).last_hidden_state[:,0,:]
 
 def inbatch_negative_sampling(Q: Tensor, P: Tensor, device: str = 'cpu') -> Tensor:
-    # TODO: your work below
-    pass
-    
-    # return S
+    # row - wise dot product
+    return torch.matmul(Q, P.T).to(device)
 
 def contrastive_loss_criterion(S: Tensor, labels: Tensor = None, device: str = 'cpu'):
-    # TODO: your work below
-    pass
+    softmax_scores = F.log_softmax(S, dim=1)
+
+    if labels is  None:
+        labels = torch.range(0,S.shape[0]-1,dtype=torch.long)
+
+    loss = F.nll_loss(
+            softmax_scores,
+            torch.tensor(labels).to(device),
+            reduction="mean",
+        )
+    return loss
     
-    # return loss
 
 def get_topk_indices(Q, P, k: int = None):
-    # TODO: your work below
-    pass
-
-    # return indices, scores
+    Q_prime = Q.unsqueeze(1).repeat(1, P.shape[0], 1).view(-1, Q.size(1))
+    P_prime = P.repeat(Q.shape[0], 1)
+    dot_product = torch.sum(Q_prime * P_prime, dim=1)
+    dot_product = dot_product.reshape((Q.shape[0],P.shape[0]))
+    top_k = torch.topk(dot_product, k)
+    return top_k.indices, top_k.values
 
 def select_by_indices(indices: Tensor, passages: 'list[str]') -> 'list[str]':
-    # TODO: your work below
-    pass
+    return [[passages[value] for value in row] for row in indices]
 
 
 def embed_passages(passages: 'list[str]', model, tokenizer, device='cpu', max_length=512):
-    # TODO: your work below
-    pass
+    model.eval()
+    batch = tokenizer(passages,padding=True, max_length=max_length, truncation=True, return_tensors='pt').to(device)
+    results = model(**batch)
+    return results.last_hidden_state[:,0,:]
 
 
 def embed_questions(titles, bodies, model, tokenizer, device='cpu', max_length=512):
-    # TODO: your work below
-    pass
+    model.eval()
+    questions = [(qt,qb) for qt,qb in zip(titles,bodies)]
+    batch = tokenizer(questions,padding=True, max_length=max_length, truncation=True, return_tensors='pt').to(device)
+    results = model(**batch)
+    return results.last_hidden_state[:,0,:]
 
 
 def recall_at_k(retrieved_indices: 'list[list[int]]', true_indices: 'list[int]', k: int):
-    # TODO: your work below
-    pass
-
+    is_in_k = [true_indices[i] in retrieved_indices[i][:k] for i in range(len(true_indices)) ]
+    return sum(is_in_k)/len(is_in_k)
+    
 
 def mean_reciprocal_rank(retrieved_indices: 'list[list[int]]', true_indices: 'list[int]'):
-    # TODO: your work below
-    pass
+    indexes = [1/(retrieved_indices[i].index(true_indices[i])+1) if true_indices[i] in retrieved_indices[i] else 0  for i in range(len(true_indices)) ]
+    return  float(sum(indexes)/len(indexes))
 
 
 # ######################## PART 4: YOUR WORK HERE ########################
@@ -285,7 +299,7 @@ if __name__ == "__main__":
 
     model = CustomDistilBert().to(device)
     optimizer = model.assign_optimizer(lr=1e-4)
-
+    
     for epoch in range(n_epochs):
         loss = train_distilbert(model, train_loader, device=device)
 
@@ -297,7 +311,7 @@ if __name__ == "__main__":
         print("Training loss:", loss)
         print("Validation F1 score:", score)
         print()
-
+    
     # ###################### PART 2: TEST CODE ######################
     freeze_params(model.get_distilbert()) # Now, model should have no trainable parameters
 
