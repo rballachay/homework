@@ -1,0 +1,178 @@
+Question Title:  Why are drippings from restaraunt ground beef colored orange?
+Question Body:  I've noticed over the years that whenever I cook ground beef from the grocery store, the drippings in the beef are typically clear in color.
+
+
+When eating out, if I order a particularly greasy ground beef item, the drippings are typically orange in color.
+
+
+What accounts for this difference in appearance?
+
+
+
+True Answer:  This should depend greatly on what the item is. Hamburgers generally run clear, possibly slightly bloody if undercooked. The only example of this I can think of would be the odd orange drippings from "taco meat". The cause of that is soluble coloring agents or spices in the drippings. 
+
+
+
+Predicted Answer:  Yes. On average, [chemical reactions slow down by a factor of two for each 10°C decrease in temperature.](http://en.wikipedia.org/wiki/Q10_%28temperature_coefficient%29) That includes the reactions that might give your sauce an off taste. Also, and partially because of the above factor, most bacteria will not thrive in subfreezing temps.
+
+
+If I were making a lot of your type of sauce, I'd consider investing in a -70°C freezer, but what you have should be good for at least a few months of home use.
+
+
+Oh yes, question 1: It's probably the sugar content that's preventing a complete freeze. Think popsicles, or icecream. Lots of things with high solute content are difficult to freeze completely due to [freezing point depression](http://en.wikipedia.org/wiki/Freezing-point_depression).
+
+
+
+Question Title:  Bread Proving Time in Warm Climates
+Question Body:  I'm following one Paul Hollywood's recipe for the "Basic White Tin Bread" from his book "
+How To Bake".
+
+
+In the recipe it states to prove 
+
+
+
+> 
+> for about 1 hour, until the dough is at least doubled in size and
+>  springs back quickly if you prod it slightly with your finger.
+> 
+> 
+> 
+
+
+I followed the recipe and all seemed to go well until baking. The rise in the oven was poor at best. The crumb appears okay but it's very dense as you get to the bottom of the loaf.
+
+
+I've been googling and it appears the problem may be that I have over proven.
+
+
+Paul Hollywood is located in the UK and his book is aimed at locals (evidenced by comments about ideal kitchen temp of 20C to 22C, 68f to 71.6f). I live in Brisbane, Queensland. The ambient temperature yesterday was 28.5C (83f). He also states in the recipe to use water that is cool (around 15C / 77f) so I use water from the fridge mixed with tap water.
+
+
+So my questions are:
+
+
+* Does the ambient temperature of the kitchen affect the prove time? If so how?
+* Does the water temperature have an impact on just the rise or on the proving as well?
+* Should I shorten the prove time and if so how to I judge how much?
+
+
+They really boil down to, how do I factor in the sub tropical climate when using a bread recipe written for the UK and north America?
+
+
+Btw, I'm not keen on continually poking the dough while proving as I'm concerned that this may affect the prove.
+
+
+
+True Answer:  It could be the proving time or the oven temperature or both.
+
+
+In hotter climates, bread dough will rise faster. Poking the dough will not harm the dough in any way, so don't be afraid to poke the dough. The best way to test if the bread dough has risen enough is by poking it. 
+
+
+As for the oven, if the temperature is too low, it can take longer to get additional rise in the oven. What I do, as do many other bread bakers, is to bake the bread at the hottest temperature it can reach for the first ten minutes, then turn it down to the regular temperature for the remainder of the time needed to bake the bread. The hotter temperature initially can result in more oven spring for the bread.
+
+
+
+Predicted Answer:  I recommrnd you pressure cook for 30 minutes at 120C, not your current 20 to 25 minutes. 
+Regardess of pH, low or high, you have already killed the spores and the high temperature is needed to destroy the residual toxins.
+Your food should be safe to consume for at least least two years after you canned it.
+
+
+
+Question Title:  Recommendations for spice organization strategies
+Question Body:  Spices have always been the hardest thing for me to keep track of in the kitchen. I'm interested in specific recommendations for 
+
+
+1. hardware (containers, labeling, shelving, etc.) and
+2. organization schemes (alphabetical? categories?)
+
+
+in order to make it easier to find the spices I'm looking for. 
+
+
+
+True Answer:  Here's what I finally came up with - I'm very pleased with this solution.
+
+
+![enter image description here](https://i.stack.imgur.com/PQMxi.jpg)
+
+
+The [jars are from Amazon.com](http://rads.stackoverflow.com/amzn/click/B000ON8QXG), the labels are printed using a [Dymo LabelWriter Twin Turbo](http://global.dymo.com/enCA/Products/LabelWriter_Twin_Turbo.html), and the shelf is a [3-Tier Bamboo Expanding Shelf from Container Store](http://www.containerstore.com/shop/kitchen/cabinetOrganizers/upperCabinets?productId=10013618). 
+
+
+My recommendations: 
+
+
+* Use a label maker if you have one. Having everything printed the same way makes it prettier and also easier to scan.
+* Using exclusively the same type of containers simplifies storage and also makes it easier to scan.
+* Put the labels towards the tops of the containers, so they're visible above the tops of the next row down.
+* This stair-step shelf expands to fit the horizontal space available, and can probably fit 
+about 60 containers, which should be enough for anyone.
+* I've gone with alphabetical order, which I've found to work very well. It has the advantage of being objective - there's no question where something belongs, and no taxonomical discussions about what category nutmeg belongs in.
+
+
+As a bonus, this setup give me pleasure every time I look at it!
+
+
+
+Predicted Answer:  Others are saying that bell peppers have no taste -- but I'd disagree. The green ones have a kind of grassy quality to them.
+
+
+Obviously, there's wheat grass, but I never have that around. There might be some herbs that could pull it off (eg, flat leaf parsley; maybe taragon, but also gives a licorice note)
+
+
+You might try some dark greens ... spinich, kale, swiss chard. They've got a touch of other stronger flavors to 'em, but if you cook them down first, you might be able to tone them down some. (I guess you might describe it as a 'spiciness' ... it can be a sharp flavor.
+
+
+... for the texture, though, my first thought was bok-choy. It's actually a cabage, and it has some dark green leaves, but the thicker white parts have that watery/crunchy quality that other people have mentioned about bell peppers, but there's that sharp cabbage note that might keep it from fitting your requirements.
+
+
+**update** : okay, as the issue is specifically fried peppers, you're going to be bringing out the sweeter notes of the peppers, which you're not going to get from a cabbage. Sweet onions might give some similar qualities (once fried well), as the cooking will mellow the oniony qualities, but the sugars will caramelize.
+
+
+You can also try looking for jarred peppers -- they're usually packed in oil or a vinegar solution after being roasted. There are 'hot' and 'sweet' varieties, where the hot ones also have some hot peppers in there. The non-vinegared ones sweet ones might work for you.
+
+
+Also, remember that bell peppers, like most vegetables are a seasonal item -- if you're in the north, it's the end of winter, so any peppers are being being grown in hot houses, or brought in from the southern hemisphere, which jacks the prices up.
+
+
+
+Question Title:  What sausage casing is this?
+Question Body:  So, I have no photo of this sausage, but to give you a picture: dry-cured chorizo, casing is easy to remove on thin slices, but on larger pieces the casing breaks sort of like paper – the edges becomes white (otherwise being transparent) and fibrous. I find it a bit chewy and like to take it off.
+
+
+What type of casing is this?
+
+
+
+True Answer:  They choose edible casings, either way, you're better off taking the casing off. 
+
+
+It sounds like it's a cellulose synthetic casing. It's possible to be natural casing, but papery fibrous leads me to think cellulose. 
+
+
+I've included some pictures to aid you along so you can guess for yourself. Often it's easier to tell by the extra casing at the ends since natural and synthetic bunch up differently.
+
+
+Here's a picture of synthetic casing from this morning's session (it's a sopressata):
+
+
+![Sythetic casing fresh](https://i.stack.imgur.com/9KoTM.png) 
+
+
+This is what it looks like cured and partially peeled:
+
+
+![cured syntheic](https://i.stack.imgur.com/5v4Od.png)
+
+
+And this is what natural casing looks like fresh: 
+
+
+![Natural Casing](https://i.stack.imgur.com/uNPRH.png)
+
+
+
+Predicted Answer:  A French ham is like a Boston ham. Cut from the shoulder. Packed tight in a cask. Then shipped. on ships for food for sailors or to America as food for troops in the civil war. Not the best of ham but good enough for those type of people. It packed well in cask in the 1800s Did not need refrigeration. Also known as Nausue ham or pork. Shipped all the way from Nausue France to feed the troops. Paris ham was good enough to keep in France for food. You could always tell French ham by the special greenish color. 
+

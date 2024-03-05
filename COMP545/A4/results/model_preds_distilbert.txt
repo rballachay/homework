@@ -1,0 +1,18 @@
+Premise: A girl in a purple sweatshirt bends over backwards.
+Hypothesis: A boy bends over backwards and breaks his back.
+True Label: 1
+Predicted Label: 1
+
+Premise: A girl in a purple sweatshirt bends over backwards.
+Hypothesis: A girl bends over backwards.
+True Label: 0
+Predicted Label: 0
+
+Premise: A little boy in green is kicking a soccer ball and 6 boys in referee shirts are following him.
+Hypothesis: There are many children around.
+True Label: 0
+Predicted Label: 0
+
+Epoch: 9
+Training loss: 0.010011456276697573
+Validation F1 score: 0.8792894630601533
