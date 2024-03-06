@@ -1,17 +1,10 @@
 Question Title:  Why are drippings from restaraunt ground beef colored orange?
+
 Question Body:  I've noticed over the years that whenever I cook ground beef from the grocery store, the drippings in the beef are typically clear in color.
-
-
 When eating out, if I order a particularly greasy ground beef item, the drippings are typically orange in color.
-
-
 What accounts for this difference in appearance?
 
-
-
 True Answer:  This should depend greatly on what the item is. Hamburgers generally run clear, possibly slightly bloody if undercooked. The only example of this I can think of would be the odd orange drippings from "taco meat". The cause of that is soluble coloring agents or spices in the drippings. 
-
-
 
 Predicted Answer:  Yes. On average, [chemical reactions slow down by a factor of two for each 10°C decrease in temperature.](http://en.wikipedia.org/wiki/Q10_%28temperature_coefficient%29) That includes the reactions that might give your sauce an off taste. Also, and partially because of the above factor, most bacteria will not thrive in subfreezing temps.
 
@@ -24,55 +17,25 @@ Oh yes, question 1: It's probably the sugar content that's preventing a complete
 
 
 Question Title:  Bread Proving Time in Warm Climates
+
 Question Body:  I'm following one Paul Hollywood's recipe for the "Basic White Tin Bread" from his book "
 How To Bake".
-
-
 In the recipe it states to prove 
-
-
-
-> 
 > for about 1 hour, until the dough is at least doubled in size and
 >  springs back quickly if you prod it slightly with your finger.
-> 
-> 
-> 
-
-
 I followed the recipe and all seemed to go well until baking. The rise in the oven was poor at best. The crumb appears okay but it's very dense as you get to the bottom of the loaf.
-
-
 I've been googling and it appears the problem may be that I have over proven.
-
-
 Paul Hollywood is located in the UK and his book is aimed at locals (evidenced by comments about ideal kitchen temp of 20C to 22C, 68f to 71.6f). I live in Brisbane, Queensland. The ambient temperature yesterday was 28.5C (83f). He also states in the recipe to use water that is cool (around 15C / 77f) so I use water from the fridge mixed with tap water.
-
-
 So my questions are:
-
-
 * Does the ambient temperature of the kitchen affect the prove time? If so how?
 * Does the water temperature have an impact on just the rise or on the proving as well?
 * Should I shorten the prove time and if so how to I judge how much?
-
-
 They really boil down to, how do I factor in the sub tropical climate when using a bread recipe written for the UK and north America?
-
-
 Btw, I'm not keen on continually poking the dough while proving as I'm concerned that this may affect the prove.
 
-
-
 True Answer:  It could be the proving time or the oven temperature or both.
-
-
 In hotter climates, bread dough will rise faster. Poking the dough will not harm the dough in any way, so don't be afraid to poke the dough. The best way to test if the bread dough has risen enough is by poking it. 
-
-
 As for the oven, if the temperature is too low, it can take longer to get additional rise in the oven. What I do, as do many other bread bakers, is to bake the bread at the hottest temperature it can reach for the first ten minutes, then turn it down to the regular temperature for the remainder of the time needed to bake the bread. The hotter temperature initially can result in more oven spring for the bread.
-
-
 
 Predicted Answer:  I recommrnd you pressure cook for 30 minutes at 120C, not your current 20 to 25 minutes. 
 Regardess of pH, low or high, you have already killed the spores and the high temperature is needed to destroy the residual toxins.

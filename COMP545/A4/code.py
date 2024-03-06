@@ -18,6 +18,7 @@ SOFT_PROMPT_TRAINING_ACC = 'results/softprompt_training_accuracy.png'
 
 
 RETRIEVAL_MODEL_RESULTS = 'results/retrieval_model_training.csv'
+RETRIEVAL_MODEL_FIG  = 'results/retrieval_model_fig.png'
 MODEL_SAVE_PATH = 'results/bicoder_retrieval_model.pt'
 
 # ######################## PART 1: PROVIDED CODE ########################
@@ -597,6 +598,8 @@ if __name__ == "__main__":
         # save the model after training and re-load when needed
         torch.save(model.state_dict(), MODEL_SAVE_PATH)
 
+    results = pd.read_csv(RETRIEVAL_MODEL_RESULTS)
+
     # load the model or use just saved model
     titles = qa_data['valid'].loc[55:58, 'QuestionTitle'].tolist()
     bodies = qa_data['valid'].loc[55:58, 'QuestionBody'].tolist()
@@ -619,3 +622,9 @@ if __name__ == "__main__":
         print('Question Body: ', body)
         print('True Answer: ', passage)
         print('Predicted Answer: ', prediction[0])
+
+    plt.clf()
+    sns.set_theme()
+    plot = sns.lineplot(data=results,x='epoch',y='recall',hue='stage')
+    fig = plot.get_figure()
+    fig.savefig(RETRIEVAL_MODEL_FIG,dpi=200)
