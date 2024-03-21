@@ -118,6 +118,7 @@ def subdivide_vertex( he ):
 	else:
 		degree = len(vertexes['outside'])
 		beta = 3/(8*degree) if degree>3 else 3/16
+		#beta = (1/degree)*(5/8-(3/8+(1/4)*np.cos(2*np.pi/degree))**2)
 
 		center = (1-degree*beta)*vertexes['center'].p
 		outside = np.sum([beta*v.p for v in vertexes['outside']],axis=0)

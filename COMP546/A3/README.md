@@ -81,4 +81,4 @@ For displacement=8, the p0 range from displacement=4 was used. The p0 noise was 
 See below the drawing for the disparity map as well as the accompanying re-drawing from above. The regions are indicated using the colors and symbols used in the re-drawing.
 
 
-<img src="results/q3/disparity-map.drawio.png" alt="part_b_image" width="500"/>
+<img src="results/q3/disparity-v2.drawio.png" alt="part_b_image" width="500"/>

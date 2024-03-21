@@ -35,7 +35,7 @@ def main():
 			ps_he.update_node_positions( current_he.get_curve_nodes() )
 		
 parser = argparse.ArgumentParser()
-parser.add_argument('-f', '--file', type=str, default='data/bunny.obj')
+parser.add_argument('-f', '--file', type=str, default='data/cube.obj')
 parser.add_argument('-l', '--levels', type=int, default=3)
 args = parser.parse_args()
 

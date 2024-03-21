@@ -68,14 +68,19 @@ class HEDS:
 		# Populate the dictionary with half edges keyed by their starting vertex
 		for half_edge in _half_edges:
 			end = half_edge.v
-
 			# filter out the edges that aren't connected to this vertex
 			edge_targets = list(filter(lambda he: (he.v==end) and (he!=half_edge) and (half_edge.n.n.v==he.n.v), _half_edges))
+			
 			if edge_targets:
 				opposite = edge_targets[0].n
 				opposite.o = half_edge
 				half_edge.o = opposite
 		
+		# delete vertex if it doesn't have a half-edge associated
+		for vertex in self.verts:
+			if vertex.he is None:
+				self.verts.remove(vertex)
+
 	def get_even_verts(self):
 		# get positions for drawing even vertices with polysope
 		if len(self.verts)==0: return []
