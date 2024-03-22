@@ -70,23 +70,38 @@ class Scene:
                 ray = hc.Ray(self.position, s-self.position)
 
                 # TODO: Test for intersection
-                intersection = hc.Intersection.default() # setup default object
+                intersection = hc.Intersection.default()
                 for object in self.objects:
+                    if isinstance(object,geom.Plane):
+                        continue
                     object.intersect(ray,intersection)
-
+                
                 if sum(intersection.position)==0:
                     continue
 
                 # ambient has no relation to the light
                 ambient = intersection.mat.diffuse * self.ambient 
+                diffuse_factor = glm.vec3(0, 0, 0)
+                blinn_phong = glm.vec3(0, 0, 0)
 
                 for light in self.lights:
                     light_vector =  normalized(light.vector - intersection.position)
 
-                    diffuse_factor = intersection.mat.diffuse * light.colour * max(0, np.dot(light_vector, intersection.normal))
-                    blinn_phong = blinn_phong_specular_shading(light, intersection, ray.direction, light_vector)
+                    # TODO: Cast shadow ray
+                    shadow_ray = hc.Ray(intersection.position+shadow_epsilon, light_vector)
+
+                    in_shadow = False
+                    for obj in self.objects:
+                        shadow_intersection = hc.Intersection.default()
+                        obj.intersect(shadow_ray, shadow_intersection)
+                        if sum(shadow_intersection.position) != 0 and shadow_intersection.time>0:
+                            in_shadow = True
+                            break
+                    
+                    if not in_shadow:
+                        diffuse_factor+=intersection.mat.diffuse * light.colour * max(0, np.dot(light_vector, intersection.normal))
+                        blinn_phong+=blinn_phong_specular_shading(light, intersection, ray.direction, light_vector)
                 
-                # TODO: Perform shading computations on the intersection point
                 colour = ambient+diffuse_factor+blinn_phong
 
                 image[i, j, 0] = max(0.0, min(1.0, colour.x))
@@ -98,7 +113,7 @@ class Scene:
 
 def blinn_phong_specular_shading(light, intersection, viewer_direction, light_vector):
     halfway_vector = normalized(light_vector + (-viewer_direction))
-    specular_factor = max(0, np.dot(intersection.normal, halfway_vector)) ** intersection.mat.hardness
+    specular_factor = max(0, np.dot(glm.vec3(intersection.normal), halfway_vector)) ** intersection.mat.hardness
     return intersection.mat.specular * light.colour * specular_factor
 
 def normalized(a, axis=-1, order=2):

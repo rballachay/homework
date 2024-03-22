@@ -1,15 +1,14 @@
-import math
 import provided.helperclasses as hc
 import glm
 import igl
 from typing import List
 import numpy as np
+from copy import deepcopy
 
 # Ported from C++ by Melissa Katz
 # Adapted from code by Loïc Nassif and Paul Kry
 
 epsilon = 10 ** (-4)
-
 
 class Geometry:
     def __init__(self, name: str, gtype: str, materials: List[hc.Material]):
@@ -62,16 +61,20 @@ class Plane(Geometry):
         if abs(denom) > 1e-6:  # To avoid division by zero
             t = np.dot(self.point - ray.origin, self.normal) / denom
 
-
             if t > 0 and t<intersect.time:
                 intersect.time=t
                 intersect.normal=self.normal
                 intersect.position = ray.origin + t*ray.direction
 
                 # we only consider the dimensions that are perpendicular to the normal
-                mat_pos = np.abs(np.array(intersect.position,dtype=int)[np.array(self.normal) == 0])
-                #print(self.materials[np.sum(mat_pos)%2])
-                intersect.mat = self.materials[np.sum(mat_pos)%2]  # will need to add the material at some point 
+                # (0,0)->(1,1) should be first material 
+                # (0,0)->(-1,-1) should be the first material
+                # (0,0)->(0,1) should be second material
+                # (0,0)->(1,0) should be second material
+                mat_pos = np.array(intersect.position,dtype=np.float)[np.array(self.normal) == 0]
+                mat_pos = [int(np.ceil(i)) for i in mat_pos]
+
+                intersect.mat = self.materials[np.sum(mat_pos)%2]
 
 
 class AABB(Geometry):
@@ -83,8 +86,37 @@ class AABB(Geometry):
         self.maxpos = center + halfside
 
     def intersect(self, ray: hc.Ray, intersect: hc.Intersection):
-        pass
-        # TODO: Create intersect code for Cube
+        tmin = (self.minpos - ray.origin) / ray.direction
+        tmax = (self.maxpos - ray.origin) / ray.direction
+
+        thigh = np.maximum(tmin, np.min(tmax))
+        tlow = np.minimum(tmax, np.max(tmin))
+
+        t_entry = np.max(tlow)
+        t_exit = np.min(thigh)
+
+        if t_entry <= t_exit:
+            # Intersection occurred
+            intersect.time = t_entry
+            intersect.position = ray.origin + t_entry * ray.direction
+            # Calculate normal of the intersected face
+            normal = self.calculate_normal(intersect.position)
+            intersect.normal = normal
+            intersect.mat = self.materials[0]
+            return True
+        return False
+
+    def calculate_normal(self, intersection_point):
+        normals = []
+        for i in range(3):
+            if np.isclose(intersection_point[i], self.minpos[i], atol=epsilon):
+                normals.append(-glm.vec3(*np.eye(3)[i]))  # Negative normal along i-th axis
+            elif np.isclose(intersection_point[i], self.maxpos[i], atol=epsilon):
+                normals.append(glm.vec3(*np.eye(3)[i]))  # Positive normal along i-th axis
+        if len(normals) > 1:
+            return sum(normals, glm.vec3()) / len(normals)
+        else:
+            return normals[0]
 
 
 class Mesh(Geometry):
@@ -124,9 +156,28 @@ class Hierarchy(Geometry):
         self.t = t
 
     def intersect(self, ray: hc.Ray, intersect: hc.Intersection):
-        pass
-        # TODO: Create intersect code for Hierarchy
+        # the origin is a point, so has 
+        origin = np.append(np.array(ray.origin),1)
+        origin = glm.vec3(np.matmul(np.array(self.Minv),origin)[:-1])
 
+        direction = np.append(np.array(ray.direction),0)
+        direction = np.matmul(np.array(self.Minv),direction)[:-1]
+        direction = normalized(direction)[0] # make sure its normalized
+        direction = glm.vec3(direction)
+
+        newRay = hc.Ray(origin,direction)
+
+        for child in self.children:
+            didintersect = child.intersect(newRay,intersect)
+
+            if didintersect:
+                normal = np.append(np.array(intersect.normal),0)
+                intersect.normal = glm.vec3(normalized(np.matmul(normal, np.array(self.M))[:-1][:]).flatten())
+                position = np.append(np.array(intersect.position),1)
+                position = np.matmul(position, np.array(self.M))
+                position = position/position[-1]
+                intersect.position =glm.vec3(position[:-1])
+                print(intersect.position)
 
 def normalized(a, axis=-1, order=2):
     l2 = np.atleast_1d(np.linalg.norm(a, order, axis))
