@@ -6,7 +6,7 @@ import matplotlib.pyplot as plt
 import os
 
 N_PIX = 256
-N_POINT = 2000
+N_POINT = 10000
 FOV_DEG = 50
 
 IMG_PATH='results/slant_{degree}_sample_img.png'
@@ -53,18 +53,6 @@ def part_a():
         """
         all_rows.append(avg_n_rows)
     all_rows = np.stack(all_rows)
-
-    fig,ax = plt.subplots(figsize=(20,5),dpi=100)  # Your image (W)idth and (H)eight in inches
-    # Stretch image to full figure, removing "grey region"
-    plt.subplots_adjust(left=0.03, right=0.93, top=1, bottom=0.03)
-    im = ax.imshow(all_rows, cmap="viridis")  # Show the image
-    pos = fig.add_axes([0.95, 0.1, 0.02, 0.35])  # Set colorbar position in fig
-    fig.colorbar(im, cax=pos)  # Create the colorbar
-    ax.set_yticks(np.arange(len(range(-60,70,10))),labels=range(-60,70,10))
-    ax.set_ylabel("Plane slant (degrees)")
-    ax.set_xlabel("Location in y-axis (normalized 0->1)")
-    ax.set_xticks(np.arange(0,64)[::4],labels=np.round(np.linspace(0,1,64),3)[::4])
-    plt.savefig(Q1_PART_A)
     return all_rows
 
 def part_b(prob_arr):
@@ -93,16 +81,16 @@ def part_b(prob_arr):
 
         total_likelihood=0
         for angle in lookup:
-            likelihood = np.log((avg_n_rows*lookup[angle]).sum())
+            likelihood = np.log((avg_n_rows*lookup[angle]).mean())
             total_likelihood = np.log(np.exp(total_likelihood) + np.exp(likelihood))
             prob_angle.append(likelihood)
 
-        all_probs = 10**(np.stack(prob_angle)-total_likelihood)
+        all_probs = 10**(np.stack(prob_angle))
+        
         pts_bin = groupedSum(img).sum(axis=1)
-
         results_counts['slant'].extend([slant]*len(pts_bin))
         results_counts['n-points'].extend(list(pts_bin))
-        results_counts['y-location'].extend(list(np.linspace(0,1,64)))
+        results_counts['y-location'].extend(list(np.linspace(0,1,32)))
 
         results_likelihood['slant'].extend([slant]*len(all_probs))
         results_likelihood['log-likelihood'].extend(list(all_probs))
@@ -111,11 +99,9 @@ def part_b(prob_arr):
     results_counts=pd.DataFrame(results_counts)
     results_likelihood=pd.DataFrame(results_likelihood)
 
-    print(results_counts)
-
     plot = sns.catplot(data=results_counts,x='y-location',col='slant',y='n-points',kind="bar")
     for ax in plot.axes:
-        ax[0].set_xticks(np.arange(0,64)[::10],labels=np.round(np.linspace(0,1,64),3)[::10])
+        ax[0].set_xticks(np.arange(0,32)[::10],labels=np.round(np.linspace(0,1,32),3)[::10])
     plot.fig.savefig(RESULTS_COUNTS) 
 
     plt.clf()
@@ -123,12 +109,22 @@ def part_b(prob_arr):
     plot = sns.catplot(data=results_likelihood,x='angle',col='slant',y='log-likelihood',ax=ax,kind="bar")
     for ax in plot.axes:
         ax[0].set_yscale("log")
-    plot.fig.savefig(RESULTS_LIKELIHOOD)
-        
+    plot.fig.savefig(RESULTS_LIKELIHOOD)   
 
+def plot_part_a(all_rows):
+    fig,ax = plt.subplots(figsize=(12,6),dpi=100)  # Your image (W)idth and (H)eight in inches
+    # Stretch image to full figure, removing "grey region"
+    plt.subplots_adjust(left=0.05, right=0.92, top=1, bottom=0.04)
+    im = ax.imshow(all_rows, cmap="viridis")  # Show the image
+    pos = fig.add_axes([0.93, 0.1, 0.02, 0.35])  # Set colorbar position in fig
+    fig.colorbar(im, cax=pos)  # Create the colorbar
+    ax.set_yticks(np.arange(len(range(-60,70,10))),labels=range(-60,70,10))
+    ax.set_ylabel("Plane slant (degrees)")
+    ax.set_xlabel("Location in y-axis (normalized 0->1)")
+    ax.set_xticks(np.arange(0,32)[::4],labels=np.round(np.linspace(0,1,32),3)[::4])
+    plt.savefig(Q1_PART_A)
 
-
-def groupedSum(myArray, N=4):
+def groupedSum(myArray, N=8):
     result = np.cumsum(myArray, 0)[N-1::N]
     result[1:] = result[1:] - result[:-1]
     return result
@@ -140,4 +136,5 @@ if __name__=="__main__":
     else:
         numpy_arr=np.loadtxt(NUMPY_ARR, delimiter=',')
     
+    plot_part_a(numpy_arr)
     part_b(numpy_arr)
