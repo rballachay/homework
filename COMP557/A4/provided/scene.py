@@ -44,7 +44,6 @@ class Scene:
         self.objects = objects  # all objects in the scene
 
     def render(self):
-
         image = np.zeros((self.width, self.height, 3))
 
         cam_dir = self.position - self.lookat
@@ -63,45 +62,53 @@ class Scene:
             for j in range(self.height):
                 colour = glm.vec3(0, 0, 0)
 
-                # TODO: Generate rays
-                u_pix = left + (right-left)*(i+0.5)/self.width
-                v_pix = bottom + (top-bottom)*(j+0.5)/self.height
-                s = self.position+u_pix*u + v_pix*v - d*w
-                ray = hc.Ray(self.position, s-self.position)
+                for u_subpixel in range(self.samples):
+                    for v_subpixel in range(self.samples):
+                        u_offset = (u_subpixel + 0.5) / self.samples
+                        v_offset = (v_subpixel + 0.5) / self.samples
 
-                # TODO: Test for intersection
-                intersection = hc.Intersection.default()
-                for object in self.objects:
-                    object.intersect(ray,intersection)
+                        # TODO: Generate rays
+                        u_pix = left + (right-left)*(i+u_offset)/self.width
+                        v_pix = bottom + (top-bottom)*(j+v_offset)/self.height
+                        s = self.position+u_pix*u + v_pix*v - d*w
+                        ray = hc.Ray(self.position, s-self.position)
 
-                if sum(intersection.position)==0:
-                    continue
+                        # TODO: Test for intersection
+                        intersection = hc.Intersection.default()
+                        for object in self.objects:
+                            #if isinstance(object,geom.Plane):
+                            #    continue
+                            object.intersect(ray,intersection)
 
-                # ambient has no relation to the light
-                ambient = intersection.mat.diffuse * self.ambient 
-                diffuse_factor = glm.vec3(0, 0, 0)
-                blinn_phong = glm.vec3(0, 0, 0)
+                        if sum(intersection.position)==0:
+                            continue
 
-                for light in self.lights:
-                    light_vector =  normalized(light.vector - intersection.position)
+                        # ambient has no relation to the light
+                        ambient = intersection.mat.diffuse * self.ambient 
+                        diffuse_factor = glm.vec3(0, 0, 0)
+                        blinn_phong = glm.vec3(0, 0, 0)
 
-                    # TODO: Cast shadow ray
-                    shadow_ray = hc.Ray(intersection.position+shadow_epsilon, light_vector)
+                        for light in self.lights:
+                            light_vector =  normalized(light.vector - intersection.position)
 
-                    in_shadow = False
-                    for obj in self.objects:
-                        shadow_intersection = hc.Intersection.default()
-                        obj.intersect(shadow_ray, shadow_intersection)
-                        if sum(shadow_intersection.position) != 0 and shadow_intersection.time>0:
-                            in_shadow = True
-                            break
-                    
-                    if not in_shadow:
-                        diffuse_factor+=intersection.mat.diffuse * light.colour * max(0, np.dot(light_vector, intersection.normal))
-                        blinn_phong+=blinn_phong_specular_shading(light, intersection, ray.direction, light_vector)
-                
-                colour = ambient+diffuse_factor+blinn_phong
+                            # TODO: Cast shadow ray
+                            shadow_ray = hc.Ray(intersection.position+shadow_epsilon, light_vector)
 
+                            in_shadow = False
+                            for obj in self.objects:
+                                shadow_intersection = hc.Intersection.default()
+                                obj.intersect(shadow_ray, shadow_intersection)
+                                if sum(shadow_intersection.position) != 0 and shadow_intersection.time>0:
+                                    in_shadow = True
+                                    break
+                            
+                            if not in_shadow:
+                                diffuse_factor+=intersection.mat.diffuse * light.colour * max(0, np.dot(light_vector, intersection.normal))
+                                blinn_phong+=blinn_phong_specular_shading(light, intersection, ray.direction, light_vector)
+                        
+                        colour += ambient+diffuse_factor+blinn_phong
+
+                colour /= self.samples** 2
                 image[i, j, 0] = max(0.0, min(1.0, colour.x))
                 image[i, j, 1] = max(0.0, min(1.0, colour.y))
                 image[i, j, 2] = max(0.0, min(1.0, colour.z))
