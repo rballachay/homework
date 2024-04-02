@@ -5,6 +5,7 @@ import provided.geometry as geom
 import provided.scene as scene
 import glm
 from typing import List
+import taichi as ti
 
 # Ported from C++ by Melissa Katz
 # Adapted from code by Loïc Nassif and Paul Kry
@@ -68,7 +69,7 @@ def load_scene(infile):
             else:
                 print("Unkown light type", l_type, ", skipping initialization")
                 continue
-            lights.append(hc.Light(l_type, l_name, l_colour, l_vector, l_power))
+            lights.append(hc.Light( l_colour, l_vector, l_power))
     except KeyError:
         lights = []
 
@@ -78,9 +79,15 @@ def load_scene(infile):
         mat_diffuse = populateVec(material["diffuse"])
         mat_specular = populateVec(material["specular"])
         mat_hardness = material["hardness"]
-        mat_name = material["name"]
+        #mat_name = material["name"]
         mat_id = material["ID"]
-        materials.append(hc.Material(mat_name, mat_specular, mat_diffuse, mat_hardness, mat_id))
+        materials.append(hc.Material(mat_specular, mat_diffuse, mat_hardness, mat_id))
+
+    materials_new = ti.Vector.field(hc.Material, shape=len(materials))
+    # Initialize the field values
+    for i in range(len(materials)):
+        materials_new[i] = i
+    materials=materials_new
 
     # Loading geometry
     objects = []
@@ -143,17 +150,17 @@ def add_basic_shape(g_name: str, g_type: str, g_pos: glm.vec3, g_mats: List[hc.M
     # Returns True if a shape was added, False otherwise
     if g_type == "sphere":
         g_radius = geometry["radius"]
-        objects.append(geom.Sphere(g_name, g_type, g_mats, g_pos, g_radius))
+        objects.append(geom.Sphere(g_mats, g_pos, g_radius))
     elif g_type == "plane":
         g_normal = populateVec(geometry["normal"])
-        objects.append(geom.Plane(g_name, g_type, g_mats, g_pos, g_normal))
+        objects.append(geom.Plane(g_mats, g_pos, g_normal))
     elif g_type == "box":
         try:
             g_size = populateVec(geometry["size"])
-            objects.append(geom.AABB(g_name, g_type, g_mats, g_pos, g_size))
+            objects.append(geom.AABB(g_mats, g_pos, g_size))
         except KeyError:
             # Boxes can also be directly declared with a min and max position
-            box = geom.AABB(g_name, g_type, g_mats, g_pos, glm.vec3(0, 0, 0))
+            box = geom.AABB(g_mats, g_pos, glm.vec3(0, 0, 0))
             box.minpos = populateVec(geometry["min"])
             box.maxpos = populateVec(geometry["max"])
             objects.append(box)
@@ -197,4 +204,9 @@ def associate_material(mats: List[hc.Material], ids: List[int]):
         for mat in mats:
             if i == mat.ID:
                 new_list.append(mat)
-    return new_list
+    
+    my_field = ti.field(hc.Material, shape=len(mat))
+    # Initialize the field values
+    for i in range(len(mat)):
+        my_field[i] = i
+    return my_field

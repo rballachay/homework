@@ -3,29 +3,31 @@ import glm
 import igl
 from typing import List
 import numpy as np
-from copy import deepcopy
+import taichi as ti
 
 # Ported from C++ by Melissa Katz
 # Adapted from code by Loïc Nassif and Paul Kry
 
 epsilon = 10 ** (-4)
 
+@ti.dataclass
 class Geometry:
-    def __init__(self, name: str, gtype: str, materials: List[hc.Material]):
-        self.name = name
-        self.gtype = gtype
-        self.materials = materials
+    #def __init__(self, name: str, gtype: str, materials: List[hc.Material]):
+    #self.name = name
+    #self.gtype = gtype
+    materials: ti.field(hc.Material, shape=())
 
     def intersect(self, ray: hc.Ray, intersect: hc.Intersection):
         return intersect
 
 
 class Sphere(Geometry):
-    def __init__(self, name: str, gtype: str, materials: List[hc.Material], center: glm.vec3, radius: float):
-        super().__init__(name, gtype, materials)
-        self.center = center
-        self.radius = radius
+    #def __init__(self, name: str, gtype: str, materials: List[hc.Material], center: glm.vec3, radius: float):
+    #super().__init__(materials)
+    center: ti.math.vec3
+    radius: ti.math.vec3
 
+    @ti.func
     def intersect(self, ray: hc.Ray, intersect: hc.Intersection):
         # note that you cannot assume a unit sphere as we did in class. this 
         # can be verified by looking at the objects in the scene json, radius isn't always 1
@@ -50,21 +52,22 @@ class Sphere(Geometry):
                 intersect.normal =  normalized ((intersect.position - self.center) / self.radius)
                 intersect.mat = self.materials[0]
 
+@ti.dataclass
 class Plane(Geometry):
-    def __init__(self, name: str, gtype: str, materials: List[hc.Material], point: glm.vec3, normal: glm.vec3):
-        super().__init__(name, gtype, materials)
-        self.point = point
-        self.normal = normal
+    #def __init__(self, name: str, gtype: str, materials: List[hc.Material], point: glm.vec3, normal: glm.vec3):
+    #super().__init__(materials)
+    point:ti.math.vec3
+    normal:ti.math.vec3
 
     def intersect(self, ray: hc.Ray, intersect: hc.Intersection):
         denom = np.dot(ray.direction, self.normal)
         if abs(denom) > 1e-6:  # To avoid division by zero
-            t = np.dot(self.point - ray.origin, self.normal) / denom
+            t = np.dot(self.point - glm.vec3(np.array(ray.origin)), self.normal) / denom
 
             if t > 0 and t<intersect.time:
                 intersect.time=t
                 intersect.normal=self.normal
-                intersect.position = ray.origin + t*ray.direction
+                intersect.position =glm.vec3(np.array( ray.origin)) + t*glm.vec3(np.array(ray.direction))
 
                 # we only consider the dimensions that are perpendicular to the normal
                 # (0,0)->(1,1) should be first material 
@@ -209,7 +212,7 @@ class Hierarchy(Geometry):
         origin_ = self.Minv*glm.vec4(ray.origin,1)
         direction = self.Minv*glm.vec4(ray.direction,0)
         origin = glm.vec3(origin_)/origin_.w
-        newRay = hc.Ray(origin,glm.vec3(direction))
+        newRay = hc.Ray(ti.math.vec3(np.array(origin)),ti.math.vec3(np.array(glm.vec3(direction))))
 
         global_didintersect = False
         for child in self.children:

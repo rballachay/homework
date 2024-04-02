@@ -6,6 +6,7 @@ import numpy as np
 import provided.geometry as geom
 import provided.helperclasses as hc
 from typing import List
+import taichi as ti
 
 # Ported from C++ by Melissa Katz
 # Adapted from code by Loïc Nassif and Paul Kry
@@ -71,10 +72,10 @@ class Scene:
                         u_pix = left + (right-left)*(i+u_offset)/self.width
                         v_pix = bottom + (top-bottom)*(j+v_offset)/self.height
                         s = self.position+u_pix*u + v_pix*v - d*w
-                        ray = hc.Ray(self.position, s-self.position)
+                        ray = hc.Ray(ti.math.vec3(np.array(self.position)), ti.math.vec3(np.array(s-self.position)))
 
                         # TODO: Test for intersection
-                        intersection = hc.Intersection.default()
+                        intersection = hc.defaultIntersection()
                         for object in self.objects:
                             #if isinstance(object,geom.Plane):
                             #    continue
@@ -96,7 +97,7 @@ class Scene:
 
                             in_shadow = False
                             for obj in self.objects:
-                                shadow_intersection = hc.Intersection.default()
+                                shadow_intersection = hc.defaultIntersection()
                                 obj.intersect(shadow_ray, shadow_intersection)
                                 if sum(shadow_intersection.position) != 0 and shadow_intersection.time>0:
                                     in_shadow = True
@@ -104,7 +105,7 @@ class Scene:
                             
                             if not in_shadow:
                                 diffuse_factor+=intersection.mat.diffuse * light.colour * max(0, np.dot(light_vector, intersection.normal))
-                                blinn_phong+=blinn_phong_specular_shading(light, intersection, ray.direction, light_vector)
+                                blinn_phong+=blinn_phong_specular_shading(light, intersection, glm.vec3(np.array(ray.direction)), light_vector)
                         
                         colour += ambient+diffuse_factor+blinn_phong
 
