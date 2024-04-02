@@ -72,10 +72,8 @@ class Scene:
                 # TODO: Test for intersection
                 intersection = hc.Intersection.default()
                 for object in self.objects:
-                    if isinstance(object,geom.Plane):
-                        continue
                     object.intersect(ray,intersection)
-                
+
                 if sum(intersection.position)==0:
                     continue
 
