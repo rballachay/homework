@@ -125,12 +125,65 @@ class Mesh(Geometry):
         self.norms = []
         for v in verts:
             self.verts.append((glm.vec3(v[0], v[1], v[2]) + translate) * scale)
-        for n in norms:
-            self.norms.append(glm.vec3(n[0], n[1], n[2]))
+        
+        if norms:
+            for n in norms:
+                self.norms.append(glm.vec3(n[0], n[1], n[2]))
+        else:
+            self.norms = [glm.vec3(0.0, 0.0, 0.0) for _ in range(len(verts))]
+            
+            # Calculate normals for each face and accumulate to vertices
+            for face in self.faces:
+                v0, v1, v2 = [self.verts[i] for i in face]
+                e1 = v1 - v0
+                e2 = v2 - v0
+                normal = glm.normalize(glm.cross(e1, e2))
+                for vertex_index in face:
+                    self.norms[vertex_index] += normal
+
+            # Normalize the accumulated normals
+            for i in range(len(self.norms)):
+                self.norms[i] = glm.normalize(self.norms[i])
+
 
     def intersect(self, ray: hc.Ray, intersect: hc.Intersection):
-        pass
-        # TODO: Create intersect code for Mesh
+        for face in self.faces:
+            v0, v1, v2 = [self.verts[i] for i in face]
+            e1 = v1 - v0
+            e2 = v2 - v0
+            pvec = glm.cross(ray.direction, e2)
+            det = glm.dot(e1, pvec)
+
+            if abs(det) < epsilon:
+                continue
+
+            inv_det = 1 / det
+            tvec = ray.origin - v0
+            u = glm.dot(tvec, pvec) * inv_det
+
+            if u < 0 or u > 1:
+                continue
+
+            qvec = glm.cross(tvec, e1)
+            v = glm.dot(ray.direction, qvec) * inv_det
+
+            if v < 0 or u + v > 1:
+                continue
+
+            t = glm.dot(e2, qvec) * inv_det
+
+            if t > epsilon and t < intersect.time:
+                intersect.time = t
+                intersect.position = ray.origin + t * ray.direction
+
+                # Interpolate normals
+                n0, n1, n2 = [self.norms[i] for i in face]
+                normal = glm.normalize((1 - u - v) * n0 + u * n1 + v * n2)
+
+                intersect.normal = normal
+                intersect.mat = self.materials[0]
+                
+
 
 
 class Hierarchy(Geometry):
