@@ -3,7 +3,8 @@ import glm
 import igl
 from typing import List
 import numpy as np
-from copy import deepcopy
+import numba as nb
+import typing as pt
 
 # Ported from C++ by Melissa Katz
 # Adapted from code by Loïc Nassif and Paul Kry
@@ -20,9 +21,18 @@ class Geometry:
         return intersect
 
 
-class Sphere(Geometry):
+@nb.experimental.jitclass([
+    ('name', nb.types.string),
+    ('gtype', nb.types.string),
+    ('materials',nb.types.ListType(hc.Material.class_type.instance_type)),
+    ('center', nb.float32[:]),
+    ('radius', nb.types.float64),
+])
+class Sphere:
     def __init__(self, name: str, gtype: str, materials: List[hc.Material], center: glm.vec3, radius: float):
-        super().__init__(name, gtype, materials)
+        self.name = name
+        self.gtype = gtype 
+        self.materials = materials
         self.center = center
         self.radius = radius
 
@@ -32,8 +42,8 @@ class Sphere(Geometry):
         # also, make the assumption that we aren't inside of the sphere
 
         oc = ray.origin - self.center  # Adjusted origin
-        a = np.dot(ray.direction, ray.direction)
-        b = 2.0 * np.dot(oc, ray.direction)
+        a = np.dot(ray.direction.astype(np.float64), ray.direction.astype(np.float64))
+        b = 2.0 * np.dot(oc.astype(np.float64), ray.direction.astype(np.float64))
         c = np.dot(oc, oc) - self.radius ** 2
         discrim = b ** 2 - 4 * a * c
 
@@ -42,38 +52,48 @@ class Sphere(Geometry):
             t0 = (-b - sqrt_discriminant) / (2 * a)
             t1 = (-b + sqrt_discriminant) / (2 * a)
 
-            t = min([t0,t1])
+            t = np.min(np.array([t0,t1],dtype=np.float32))
 
             if t>0 and t<intersect.time:
-                intersect.time = t
-                intersect.position = ray.origin + t * ray.direction
-                intersect.normal =  normalized ((intersect.position - self.center) / self.radius)
+                intersect.time = np.float32(t)
+                intersect.position = (ray.origin + t * ray.direction).astype(np.float32)
+                intersect.normal =  normalized ((intersect.position - self.center) / self.radius).astype(np.float32)
                 intersect.mat = self.materials[0]
 
-class Plane(Geometry):
-    def __init__(self, name: str, gtype: str, materials: List[hc.Material], point: glm.vec3, normal: glm.vec3):
-        super().__init__(name, gtype, materials)
+@nb.experimental.jitclass([
+    ('name', nb.types.string),
+    ('gtype', nb.types.string),
+    ('materials',nb.types.ListType(hc.Material.class_type.instance_type)),
+    ('point', nb.float32[:]),
+    ('normal', nb.float32[:]),
+])
+class Plane:
+    def __init__(self, name: str, gtype: str, materials: pt.List[hc.Material], point: nb.float32[:], normal: nb.float32[:]):
+        self.name = name
+        self.gtype = gtype
+        self.materials = materials
         self.point = point
         self.normal = normal
 
     def intersect(self, ray: hc.Ray, intersect: hc.Intersection):
-        denom = np.dot(ray.direction, self.normal)
+        direction = ray.direction.astype(np.float64)
+        normal = self.normal.astype(np.float64)
+        denom = np.dot(direction, normal)
         if abs(denom) > 1e-6:  # To avoid division by zero
             t = np.dot(self.point - ray.origin, self.normal) / denom
 
             if t > 0 and t<intersect.time:
                 intersect.time=t
                 intersect.normal=self.normal
-                intersect.position = ray.origin + t*ray.direction
+                intersect.position = (ray.origin + t*ray.direction).astype(np.float32)
 
                 # we only consider the dimensions that are perpendicular to the normal
                 # (0,0)->(1,1) should be first material 
                 # (0,0)->(-1,-1) should be the first material
                 # (0,0)->(0,1) should be second material
                 # (0,0)->(1,0) should be second material
-                mat_pos = np.array(intersect.position,dtype=np.float)[np.array(self.normal) == 0]
-                mat_pos = [int(np.ceil(i)) for i in mat_pos]
-
+                mat_pos = intersect.position.astype(np.float64)[self.normal == 0]
+                mat_pos = np.array([int(np.ceil(i)) for i in mat_pos])
                 intersect.mat = self.materials[np.sum(mat_pos)%2]
 
 
@@ -184,8 +204,6 @@ class Mesh(Geometry):
                 intersect.mat = self.materials[0]
                 
 
-
-
 class Hierarchy(Geometry):
     def __init__(self, name: str, gtype: str, materials: List[hc.Material], t: glm.vec3, r: glm.vec3, s: glm.vec3):
         super().__init__(name, gtype, materials)
@@ -224,7 +242,18 @@ class Hierarchy(Geometry):
 
         return global_didintersect
 
-def normalized(a, axis=-1, order=2):
-    l2 = np.atleast_1d(np.linalg.norm(a, order, axis))
-    l2[l2==0] = 1
-    return a / np.expand_dims(l2, axis)
+'''
+'''
+@nb.experimental.jitclass([
+    ('spheres', nb.types.ListType(Sphere.class_type.instance_type)),
+    ('planes', nb.types.ListType(Plane.class_type.instance_type)),
+]) 
+class ObjectContainer:
+    def __init__(self, spheres, planes):
+        self.spheres  = spheres
+        self.planes  = planes
+    
+
+@nb.jit(nopython=True)
+def normalized(a):
+    return a / np.sqrt(np.sum(a**2))

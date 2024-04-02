@@ -44,7 +44,17 @@ class Scene:
         self.objects = objects  # all objects in the scene
 
     def render(self):
+        try:
+            from provided.render_nb import wrap_render    
+            image = wrap_render(self.width, self.height, self.position, 
+                              self.lookat, self.aspect, self.fov, self.up,
+                              self.ambient, self.objects, self.lights)               
+        except ImportError:
+            print("Failed to import numba, continuing wuth normal render")
+            image = self.render_fallback()
+        return image
 
+    def render_fallback(self):      
         image = np.zeros((self.width, self.height, 3))
 
         cam_dir = self.position - self.lookat

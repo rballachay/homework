@@ -5,13 +5,15 @@ import provided.geometry as geom
 import provided.scene as scene
 import glm
 from typing import List
+import numba as nb
+import typing as pt
 
 # Ported from C++ by Melissa Katz
 # Adapted from code by Loïc Nassif and Paul Kry
 
 
 def populateVec(array: list):
-    return glm.vec3(array[0], array[1], array[2])
+    return nb.float32([array[0], array[1], array[2]])
 
 
 def load_scene(infile):
@@ -51,7 +53,7 @@ def load_scene(infile):
         samples = 1
 
     # Loading scene lights
-    lights = []
+    lights = nb.typed.List()
     try:
         for light in data["lights"]:
             l_type = light["type"]
@@ -70,10 +72,10 @@ def load_scene(infile):
                 continue
             lights.append(hc.Light(l_type, l_name, l_colour, l_vector, l_power))
     except KeyError:
-        lights = []
+        lights = nb.typed.List()
 
     # Loading materials
-    materials = []
+    materials = nb.typed.List()
     for material in data["materials"]:
         mat_diffuse = populateVec(material["diffuse"])
         mat_specular = populateVec(material["specular"])
@@ -83,7 +85,8 @@ def load_scene(infile):
         materials.append(hc.Material(mat_name, mat_specular, mat_diffuse, mat_hardness, mat_id))
 
     # Loading geometry
-    objects = []
+    objects = geom.ObjectContainer(spheres=nb.typed.List.empty_list(geom.Sphere.class_type.instance_type),
+                                   planes=nb.typed.List.empty_list(geom.Plane.class_type.instance_type))
 
     # Extra stuff for hierarchies
     rootNames = []
@@ -143,10 +146,10 @@ def add_basic_shape(g_name: str, g_type: str, g_pos: glm.vec3, g_mats: List[hc.M
     # Returns True if a shape was added, False otherwise
     if g_type == "sphere":
         g_radius = geometry["radius"]
-        objects.append(geom.Sphere(g_name, g_type, g_mats, g_pos, g_radius))
+        objects.spheres.append(geom.Sphere(g_name, g_type, g_mats, g_pos, g_radius))
     elif g_type == "plane":
         g_normal = populateVec(geometry["normal"])
-        objects.append(geom.Plane(g_name, g_type, g_mats, g_pos, g_normal))
+        objects.planes.append(geom.Plane(g_name, g_type, g_mats, g_pos, g_normal))
     elif g_type == "box":
         try:
             g_size = populateVec(geometry["size"])
@@ -174,7 +177,7 @@ def traverse_children(node: geom.Hierarchy, children, materials: List[hc.Materia
         try:
             g_pos = populateVec(geometry["position"])
         except KeyError:
-            g_pos = glm.vec3(0, 0, 0)
+            g_pos = nb.float32([0, 0, 0])
         g_mats = associate_material(materials, geometry["materials"])
 
         if add_basic_shape(g_name, g_type, g_pos, g_mats, geometry, node.children):
@@ -192,7 +195,7 @@ def traverse_children(node: geom.Hierarchy, children, materials: List[hc.Materia
 
 
 def associate_material(mats: List[hc.Material], ids: List[int]):
-    new_list = []
+    new_list = nb.typed.List()
     for i in ids:
         for mat in mats:
             if i == mat.ID:
