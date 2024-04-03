@@ -1,18 +1,9 @@
 import numba as nb
 import numpy as np
 import math
-import provided.helperclasses as hc
+import provided_numba.helperclasses as hc
 
 shadow_epsilon = 10**(-6)
-
-def wrap_render(width, height, position, lookat, aspect, fov, up, ambient, objects, lights):
-    """
-    This wrapper is used to safely convert the types into compatible types
-    """
-    return render_nb(width, height, np.array(position), 
-                     np.array(lookat), np.array(aspect), fov, np.array(up), 
-                     ambient, objects, lights)
-
 
 @nb.njit
 def zip(arr1, arr2):
@@ -62,7 +53,7 @@ def render_nb(width, height, position, lookat, aspect, fov, up, ambient, objects
                 continue
 
             # ambient has no relation to the light
-            ambient = intersection.mat.diffuse * ambient 
+            ambient_light = intersection.mat.diffuse * ambient 
             diffuse_factor = np.array([0, 0, 0], dtype=np.float32)
             blinn_phong = np.array([0, 0, 0], dtype=np.float32)
 
@@ -110,7 +101,7 @@ def render_nb(width, height, position, lookat, aspect, fov, up, ambient, objects
                     diffuse_factor = diffuse_factor + intersection.mat.diffuse * light.colour  * _max
                     blinn_phong = blinn_phong.astype(np.float32) + blinn_phong_specular_shading(light, intersection, ray.direction, light_vector).astype(np.float32)
             
-            colour = ambient+diffuse_factor+blinn_phong
+            colour = ambient_light+diffuse_factor+blinn_phong
 
             image[i, j, 0] = max(0.0, min(1.0, colour[0]))
             image[i, j, 1] = max(0.0, min(1.0, colour[1]))

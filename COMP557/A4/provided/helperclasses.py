@@ -1,18 +1,13 @@
 import glm
-import numba as nb
-import numpy as np
 
 # Ported from C++ by Melissa Katz
 # Adapted from code by Loïc Nassif and Paul Kry
 
-@nb.experimental.jitclass([
-    ('origin',  nb.float32[:]),
-    ('direction', nb.float64[:]),# i have no idea in god why i can't downcast to float32
-])
+
 class Ray:
-    def __init__(self, origin: glm.vec3, direction: glm.vec3):
-        self.origin = origin
-        self.direction = direction
+    def __init__(self, o: glm.vec3, d: glm.vec3):
+        self.origin = o
+        self.direction = d
 
     def getDistance(self, point: glm.vec3):
         return glm.length(point - self.origin)
@@ -20,62 +15,44 @@ class Ray:
     def getPoint(self, t: float):
         return self.origin + self.direction * t
 
-@nb.experimental.jitclass([
-    ('name', nb.types.string),
-    ('specular', nb.float32[:]),
-    ('diffuse', nb.float32[:]),
-    ('hardness', nb.types.float64),
-    ('ID', nb.int32)
-])
+
 class Material:
-    def __init__(self, name: str, specular: nb.float32[:], diffuse: nb.float32[:], hardness: float, ID: int):
+    def __init__(self, name: str, specular: glm.vec3, diffuse: glm.vec3, hardness: float, ID: int):
         self.name = name
         self.specular = specular
         self.diffuse = diffuse
         self.hardness = hardness
         self.ID = ID
 
-@nb.jit(nopython=True)
-def defaultMaterial():
-    name = "default"
-    specular = diffuse = nb.float32([0, 0, 0])
-    hardness = 1.0
-    ID=-1
-    return Material(name, specular, diffuse, hardness, ID)
+    @staticmethod
+    def default():
+        name = "default"
+        specular = diffuse = glm.vec3(0, 0, 0)
+        hardness = ID = -1
+        return Material(name, specular, diffuse, hardness, ID)
 
 
-@nb.experimental.jitclass([
-    ('type', nb.types.string),
-    ('name', nb.types.string),
-    ('colour', nb.float32[:]),
-    ('vector', nb.float32[:]),
-    ('power', nb.types.float64),
-])
 class Light:
-    def __init__(self, ltype: str, name: str, colour: nb.float32[:], vector: nb.float32[:], power: float):
+    def __init__(self, ltype: str, name: str, colour: glm.vec3, vector: glm.vec3, power: float):
         self.type = ltype
         self.name = name
         self.colour = colour
         self.vector = vector
         self.power = power
 
-@nb.experimental.jitclass([
-    ('time', nb.types.float64),
-    ('normal', nb.float32[:]),
-    ('position', nb.float32[:]),
-    ('mat', Material.class_type.instance_type),
-])
+
 class Intersection:
+
     def __init__(self, time: float, normal: glm.vec3, position: glm.vec3, material: Material):
         self.time = time
         self.normal = normal
         self.position = position
         self.mat = material
 
-@nb.jit(nopython=True)
-def defaultIntersection():
-    time = np.inf
-    normal = nb.float32([0, 0, 0])
-    position = nb.float32([0, 0, 0])
-    mat = defaultMaterial()
-    return Intersection(time, normal, position, mat)
+    @staticmethod
+    def default():
+        time = float("inf")
+        normal = glm.vec3(0, 0, 0)
+        position = glm.vec3(0, 0, 0)
+        mat = Material.default()
+        return Intersection(time, normal, position, mat)

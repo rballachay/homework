@@ -1,5 +1,4 @@
 import numpy
-import provided.scene_parser as scene_parser
 import argparse
 import matplotlib.pyplot as plt
 
@@ -9,11 +8,18 @@ import matplotlib.pyplot as plt
 parse = argparse.ArgumentParser()
 parse.add_argument("--infile", type=str, help="Name of json file that will define the scene")
 parse.add_argument("--outfile", type=str, default="out.png", help="Name of png that will contain the render")
+parse.add_argument("--numba", action='store_true', help="Use numba just-in-time compilation")
 args = parse.parse_args()
 
 if __name__ == "__main__":
 
-    full_scene = scene_parser.load_scene(args.infile)
+    if args.numba:
+        import provided_numba.scene_parser as scene_parser
+        full_scene = scene_parser.load_scene(args.infile)
+    else:
+        import provided.scene_parser as scene_parser
+        full_scene = scene_parser.load_scene(args.infile)
+
     image = full_scene.render()
     image = numpy.rot90(image, k=1, axes=(0, 1))
     plt.axis("off")

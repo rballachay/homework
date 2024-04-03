@@ -5,7 +5,7 @@ import numpy as np
 
 import provided.geometry as geom
 import provided.helperclasses as hc
-from typing import List, TypedDict
+from typing import List
 
 # Ported from C++ by Melissa Katz
 # Adapted from code by Loïc Nassif and Paul Kry
@@ -27,7 +27,7 @@ class Scene:
                  ambient: glm.vec3,
                  lights: List[hc.Light],
                  materials: List[hc.Material],
-                 objects: list,
+                 objects: List[geom.Geometry]
                  ):
         self.width = width  # width of image
         self.height = height  # height of image
@@ -44,17 +44,7 @@ class Scene:
         self.objects = objects  # all objects in the scene
 
     def render(self):
-        try:
-            from provided.render_nb import wrap_render    
-            image = wrap_render(self.width, self.height, self.position, 
-                              self.lookat, self.aspect, self.fov, self.up,
-                              self.ambient, self.objects, self.lights)               
-        except ImportError:
-            print("Failed to import numba, continuing wuth normal render")
-            image = self.render_fallback()
-        return image
 
-    def render_fallback(self):      
         image = np.zeros((self.width, self.height, 3))
 
         cam_dir = self.position - self.lookat
