@@ -1,24 +1,15 @@
 import provided.helperclasses as hc
 import glm
-import igl
 from typing import List
 import numpy as np
 import numba as nb
 import typing as pt
 
+
 # Ported from C++ by Melissa Katz
 # Adapted from code by Loïc Nassif and Paul Kry
 
 epsilon = 10 ** (-4)
-
-class Geometry:
-    def __init__(self, name: str, gtype: str, materials: List[hc.Material]):
-        self.name = name
-        self.gtype = gtype
-        self.materials = materials
-
-    def intersect(self, ray: hc.Ray, intersect: hc.Intersection):
-        return intersect
 
 
 @nb.experimental.jitclass([
@@ -36,7 +27,7 @@ class Sphere:
         self.center = center
         self.radius = radius
 
-    def intersect(self, ray: hc.Ray, intersect: hc.Intersection):
+    def intersect(self, ray: hc.Ray, intersect: hc.Intersection, M:np.ndarray):
         # note that you cannot assume a unit sphere as we did in class. this 
         # can be verified by looking at the objects in the scene json, radius isn't always 1
         # also, make the assumption that we aren't inside of the sphere
@@ -75,7 +66,7 @@ class Plane:
         self.point = point
         self.normal = normal
 
-    def intersect(self, ray: hc.Ray, intersect: hc.Intersection):
+    def intersect(self, ray: hc.Ray, intersect: hc.Intersection, M:np.ndarray):
         direction = ray.direction.astype(np.float64)
         normal = self.normal.astype(np.float64)
         denom = np.dot(direction, normal)
@@ -96,16 +87,55 @@ class Plane:
                 mat_pos = np.array([int(np.ceil(i)) for i in mat_pos])
                 intersect.mat = self.materials[np.sum(mat_pos)%2]
 
-
-class AABB(Geometry):
+@nb.experimental.jitclass([
+    ('name', nb.types.string),
+    ('gtype', nb.types.string),
+    ('materials',nb.types.ListType(hc.Material.class_type.instance_type)),
+    ('minpos', nb.types.float32[:]),
+    ('maxpos', nb.types.float32[:]),
+])
+class AABB:
     def __init__(self, name: str, gtype: str, materials: List[hc.Material], center: glm.vec3, dimension: glm.vec3):
         # dimension holds information for length of each size of the box
-        super().__init__(name, gtype, materials)
-        halfside = dimension / 2
-        self.minpos = center - halfside
-        self.maxpos = center + halfside
+        self.name = name
+        self.gtype = gtype
+        self.materials = materials
+        halfside = dimension / 2.0
+        self.minpos = (center - halfside).astype(np.float32)
+        self.maxpos = (center + halfside).astype(np.float32)
 
-    def intersect(self, ray: hc.Ray, intersect: hc.Intersection):
+    def intersect(self, ray, intersection, M_in):
+        M = M_in[:,:,0]
+        for i in range(1,M_in.shape[-1]):
+            M = np.dot(M, M_in[:,:,i])
+        
+        Minv =  np.linalg.inv(M)
+
+        # Transform the ray
+        origin_homogeneous = np.append(ray.origin, 1)
+        origin_transformed = np.dot(Minv, origin_homogeneous)
+        origin = origin_transformed[:3] / origin_transformed[3]
+
+        direction_homogeneous = np.append(ray.direction, 0)
+        direction_transformed = np.dot(Minv, direction_homogeneous)
+        direction = direction_transformed[:3]
+
+        new_ray = hc.Ray(origin.astype(np.float32), direction.astype(np.float64))
+
+        # Check for intersection with the transformed ray
+        did_intersect = self.check_intersect(new_ray, intersection)
+
+        if did_intersect:
+            # Transform intersection properties back to the original coordinate system
+            normal_homogeneous = np.append(intersection.normal, 0)
+            normal_transformed = np.dot(Minv.T, normal_homogeneous)
+            intersection.normal = normalized(normal_transformed[:3]).astype(np.float32)
+
+            position_homogeneous = np.append(intersection.position, 1)
+            position_transformed = np.dot(M, position_homogeneous)
+            intersection.position = (position_transformed[:3] / position_transformed[3]).astype(np.float32)
+
+    def check_intersect(self, ray: hc.Ray, intersect: hc.Intersection):
         tmin = (self.minpos - ray.origin) / ray.direction
         tmax = (self.maxpos - ray.origin) / ray.direction
 
@@ -115,10 +145,10 @@ class AABB(Geometry):
         if (t_entry <= t_exit)  and (intersect.time>t_entry):
             # Intersection occurred
             intersect.time = t_entry
-            intersect.position = ray.origin + t_entry * ray.direction
+            intersect.position = (ray.origin + t_entry * ray.direction).astype(np.float32)
             # Calculate normal of the intersected face
             normal = self.calculate_normal(intersect.position)
-            intersect.normal = normal
+            intersect.normal = normal.astype(np.float32)
             intersect.mat = self.materials[0]
             return True
         return False
@@ -127,133 +157,121 @@ class AABB(Geometry):
         normals = []
         for i in range(3):
             if np.isclose(intersection_point[i], self.minpos[i], atol=epsilon):
-                normals.append(-glm.vec3(*np.eye(3)[i]))  # Negative normal along i-th axis
+                normals.append(-np.eye(3)[i])  # Negative normal along i-th axis
             elif np.isclose(intersection_point[i], self.maxpos[i], atol=epsilon):
-                normals.append(glm.vec3(*np.eye(3)[i]))  # Positive normal along i-th axis
+                normals.append(np.eye(3)[i]) # Positive normal along i-th axis
         if len(normals) > 1:
-            return sum(normals, glm.vec3()) / len(normals)
+            return sum(normals, np.zeros(3)) / len(normals)
         else:
             return normals[0]
 
-
-class Mesh(Geometry):
+@nb.experimental.jitclass([
+    ('name', nb.types.string),
+    ('gtype', nb.types.string),
+    ('materials',nb.types.ListType(hc.Material.class_type.instance_type)),
+    ('faces', nb.types.ListType(nb.int32[:])),
+    ('verts', nb.types.ListType(nb.float32[:])),
+    ('norms', nb.types.ListType(nb.float32[:])),
+])
+class Mesh:
     def __init__(self, name: str, gtype: str, materials: List[hc.Material], translate: glm.vec3, scale: float,
-                 filepath: str):
-        super().__init__(name, gtype, materials)
-        verts, _, norms, self.faces, _, _ = igl.read_obj(filepath)
-        self.verts = []
-        self.norms = []
+                 verts: str, norms, faces):
+        self.name = name
+        self.gtype = gtype
+        self.materials = materials
+        self.verts = nb.typed.List.empty_list(nb.float32[:])
+        self.norms = nb.typed.List.empty_list(nb.float32[:])
+        self.faces = nb.typed.List.empty_list(nb.int32[:])
+
+        for f in faces:
+            self.faces.append(f.astype(np.int32))
+
         for v in verts:
-            self.verts.append((glm.vec3(v[0], v[1], v[2]) + translate) * scale)
+            self.verts.append((( v + translate) * scale).astype(np.float32))
         
         if norms:
             for n in norms:
-                self.norms.append(glm.vec3(n[0], n[1], n[2]))
+                self.norms.append(n.astype(np.float32))
         else:
-            self.norms = [glm.vec3(0.0, 0.0, 0.0) for _ in range(len(verts))]
+            for _ in range(len(verts)):
+                self.norms.append(np.array([0.0, 0.0, 0.0]).astype(np.float32))
             
             # Calculate normals for each face and accumulate to vertices
             for face in self.faces:
                 v0, v1, v2 = [self.verts[i] for i in face]
                 e1 = v1 - v0
                 e2 = v2 - v0
-                normal = glm.normalize(glm.cross(e1, e2))
+                normal = normalized(np.cross(e1, e2))
                 for vertex_index in face:
                     self.norms[vertex_index] += normal
 
             # Normalize the accumulated normals
             for i in range(len(self.norms)):
-                self.norms[i] = glm.normalize(self.norms[i])
+                self.norms[i] = normalized(self.norms[i])
 
 
-    def intersect(self, ray: hc.Ray, intersect: hc.Intersection):
+    def intersect(self, ray, intersect, M:np.ndarray):
         for face in self.faces:
             v0, v1, v2 = [self.verts[i] for i in face]
             e1 = v1 - v0
             e2 = v2 - v0
-            pvec = glm.cross(ray.direction, e2)
-            det = glm.dot(e1, pvec)
+            pvec = np.cross(ray.direction, e2).astype(np.float32)
+            det = np.dot(e1, pvec)
 
-            if abs(det) < epsilon:
+            if np.abs(det) < epsilon:
                 continue
 
-            inv_det = 1 / det
+            inv_det = 1.0 / det
             tvec = ray.origin - v0
-            u = glm.dot(tvec, pvec) * inv_det
+            u = np.dot(tvec, pvec) * inv_det
 
             if u < 0 or u > 1:
                 continue
 
-            qvec = glm.cross(tvec, e1)
-            v = glm.dot(ray.direction, qvec) * inv_det
+            qvec = np.cross(tvec, e1).astype(np.float32)
+            v = np.dot(ray.direction.astype(np.float32), qvec) * np.float32(inv_det)
 
             if v < 0 or u + v > 1:
                 continue
 
-            t = glm.dot(e2, qvec) * inv_det
+            t = np.dot(e2, qvec) * inv_det
 
             if t > epsilon and t < intersect.time:
                 intersect.time = t
-                intersect.position = ray.origin + t * ray.direction
+                intersect.position = (ray.origin + t * ray.direction.astype(np.float32)).astype(np.float32)
 
                 # Interpolate normals
                 n0, n1, n2 = [self.norms[i] for i in face]
-                normal = glm.normalize((1 - u - v) * n0 + u * n1 + v * n2)
+                normal = normalized((1 - u - v) * n0 + u * n1 + v * n2)
 
-                intersect.normal = normal
+                intersect.normal = normal.astype(np.float32)
                 intersect.mat = self.materials[0]
-                
 
-class Hierarchy(Geometry):
-    def __init__(self, name: str, gtype: str, materials: List[hc.Material], t: glm.vec3, r: glm.vec3, s: glm.vec3):
-        super().__init__(name, gtype, materials)
-        self.t = t
-        self.M = glm.mat4(1.0)
-        self.Minv = glm.mat4(1.0)
-        self.make_matrices(t, r, s)
-        self.children: list[Geometry] = []
 
-    def make_matrices(self, t: glm.vec3, r: glm.vec3, s: glm.vec3):
-        self.M = glm.mat4(1.0)
-        self.M = glm.translate(self.M, t)
-        self.M = glm.rotate(self.M, glm.radians(r.x), glm.vec3(1, 0, 0))
-        self.M = glm.rotate(self.M, glm.radians(r.y), glm.vec3(0, 1, 0))
-        self.M = glm.rotate(self.M, glm.radians(r.z), glm.vec3(0, 0, 1))
-        self.M = glm.scale(self.M, s)
-        self.Minv = glm.inverse(self.M)
-        self.t = t
-
-    def intersect(self, ray: hc.Ray, intersect: hc.Intersection):
-        origin_ = self.Minv*glm.vec4(ray.origin,1)
-        direction = self.Minv*glm.vec4(ray.direction,0)
-        origin = glm.vec3(origin_)/origin_.w
-        newRay = hc.Ray(origin,glm.vec3(direction))
-
-        global_didintersect = False
-        for child in self.children:
-            didintersect = child.intersect(newRay,intersect)
-            
-            if didintersect:
-                normal = self.M*glm.vec4(intersect.normal,0)
-                intersect.normal = glm.normalize(glm.vec3(normal))
-                position = self.M*glm.vec4(intersect.position,1)
-                intersect.position = glm.vec3(position)/position.w  
-                global_didintersect=True
-
-        return global_didintersect
-
-'''
-'''
 @nb.experimental.jitclass([
     ('spheres', nb.types.ListType(Sphere.class_type.instance_type)),
     ('planes', nb.types.ListType(Plane.class_type.instance_type)),
+    ('meshes', nb.types.ListType(Mesh.class_type.instance_type)),
+    ('boxes', nb.types.ListType(AABB.class_type.instance_type)),
+    ('sphereTransforms', nb.types.ListType(nb.float64[:,:,:])),
+    ('planeTransforms', nb.types.ListType(nb.float64[:,:,:])),
+    ('meshTransforms', nb.types.ListType(nb.float64[:,:,:])),
+    ('boxTransforms', nb.types.ListType(nb.float64[:,:,:])),
 ]) 
 class ObjectContainer:
-    def __init__(self, spheres, planes):
-        self.spheres  = spheres
-        self.planes  = planes
-    
+    def __init__(self, spheres, planes, meshes, boxes, 
+                 sphereTransforms, planeTransforms, meshTransforms,
+                 boxTransforms):
+        self.spheres = spheres
+        self.planes = planes
+        self.meshes = meshes
+        self.boxes = boxes
+        self.sphereTransforms = sphereTransforms
+        self.planeTransforms = planeTransforms
+        self.meshTransforms = meshTransforms
+        self.boxTransforms = boxTransforms
 
 @nb.jit(nopython=True)
 def normalized(a):
+    a=a.flatten()
     return a / np.sqrt(np.sum(a**2))

@@ -5,7 +5,7 @@ import numpy as np
 
 import provided.geometry as geom
 import provided.helperclasses as hc
-from typing import List
+from typing import List, TypedDict
 
 # Ported from C++ by Melissa Katz
 # Adapted from code by Loïc Nassif and Paul Kry
@@ -27,7 +27,7 @@ class Scene:
                  ambient: glm.vec3,
                  lights: List[hc.Light],
                  materials: List[hc.Material],
-                 objects: List[geom.Geometry]
+                 objects: list,
                  ):
         self.width = width  # width of image
         self.height = height  # height of image

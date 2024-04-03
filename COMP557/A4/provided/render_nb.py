@@ -13,7 +13,14 @@ def wrap_render(width, height, position, lookat, aspect, fov, up, ambient, objec
                      np.array(lookat), np.array(aspect), fov, np.array(up), 
                      ambient, objects, lights)
 
-    
+
+@nb.njit
+def zip(arr1, arr2):
+    result = []
+    for i in range(min(len(arr1), len(arr2))):
+        result.append((arr1[i], arr2[i]))
+    return result
+  
 @nb.jit(nopython=True)
 def render_nb(width, height, position, lookat, aspect, fov, up, ambient, objects, lights):
     image = np.zeros((width, height, 3))
@@ -42,10 +49,14 @@ def render_nb(width, height, position, lookat, aspect, fov, up, ambient, objects
 
             # TODO: Test for intersection
             intersection = hc.defaultIntersection()
-            for object in objects.planes:
-                object.intersect(ray,intersection)
-            for object in objects.spheres:
-                object.intersect(ray,intersection)
+            for object, transform in zip(objects.planes,objects.planeTransforms):
+                object.intersect(ray,intersection,transform)
+            for object, transform in zip(objects.spheres,objects.sphereTransforms):
+                object.intersect(ray,intersection,transform)
+            for object, transform in zip(objects.meshes,objects.meshTransforms):
+                object.intersect(ray,intersection,transform)
+            for object, transform in zip(objects.boxes,objects.boxTransforms):
+                object.intersect(ray,intersection,transform)
 
             if np.sum(intersection.position)==0:
                 continue
@@ -62,19 +73,36 @@ def render_nb(width, height, position, lookat, aspect, fov, up, ambient, objects
                 shadow_ray = hc.Ray((intersection.position+shadow_epsilon).astype(np.float32), light_vector.astype(np.float64))
 
                 in_shadow = False
-                for obj in objects.planes:
+                for object, transform in zip(objects.planes,objects.planeTransforms):
                     shadow_intersection = hc.defaultIntersection()
-                    obj.intersect(shadow_ray, shadow_intersection)
+                    object.intersect(shadow_ray, shadow_intersection, transform)
                     if np.sum(shadow_intersection.position) != 0 and shadow_intersection.time>0:
                         in_shadow = True
                         break
                 
-                for obj in objects.spheres:
-                    shadow_intersection = hc.defaultIntersection()
-                    obj.intersect(shadow_ray, shadow_intersection)
-                    if np.sum(shadow_intersection.position) != 0 and shadow_intersection.time>0:
-                        in_shadow = True
-                        break
+                if not in_shadow:
+                    for object, transform in zip(objects.spheres,objects.sphereTransforms):
+                        shadow_intersection = hc.defaultIntersection()
+                        object.intersect(shadow_ray, shadow_intersection, transform)
+                        if np.sum(shadow_intersection.position) != 0 and shadow_intersection.time>0:
+                            in_shadow = True
+                            break
+                
+                if not in_shadow:
+                    for object, transform in zip(objects.meshes,objects.meshTransforms):
+                        shadow_intersection = hc.defaultIntersection()
+                        object.intersect(shadow_ray, shadow_intersection, transform)
+                        if np.sum(shadow_intersection.position) != 0 and shadow_intersection.time>0:
+                            in_shadow = True
+                            break
+
+                if not in_shadow:
+                    for object, transform in zip(objects.boxes,objects.boxTransforms):
+                        shadow_intersection = hc.defaultIntersection()
+                        object.intersect(shadow_ray, shadow_intersection, transform)
+                        if np.sum(shadow_intersection.position) != 0 and shadow_intersection.time>0:
+                            in_shadow = True
+                            break
                 
                 if not in_shadow:
                     _dot = np.dot(light_vector.astype(np.float32), intersection.normal.astype(np.float32))
