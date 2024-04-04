@@ -148,7 +148,7 @@ def load_scene(infile):
     return scene.Scene(width, height, jitter, samples,  # General settings
                        cam_pos, cam_lookat, cam_up, cam_fov,  # Camera settings
                        ambient, lights,  # Light settings
-                       materials, objects, False)  # General settings
+                       materials, objects, True)  # General settings
 
 
 def add_basic_shape(g_name: str, g_type: str, g_pos: glm.vec3, g_mats: List[hc.Material], geometry, objects: list, transformation):

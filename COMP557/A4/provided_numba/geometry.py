@@ -194,11 +194,6 @@ class Mesh:
         for v in verts:
             self.verts.append((( v + translate) * scale).astype(np.float32))
         
-        # this will be an empty list otherwise
-        #if norms.size!=0:
-        #    for n in norms:
-        #        self.norms.append(n.astype(np.float32))
-        #else:
         for _ in range(len(verts)):
             self.norms.append(np.array([0.0, 0.0, 0.0]).astype(np.float32))
         

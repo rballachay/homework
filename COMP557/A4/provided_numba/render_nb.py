@@ -4,7 +4,7 @@ import math
 import provided_numba.helperclasses as hc
 import random
 
-shadow_epsilon = 10**(-4)
+shadow_epsilon = 10**(-6)
 
 @nb.jit(nopython=True)
 def zip(arr1, arr2):
@@ -15,8 +15,9 @@ def zip(arr1, arr2):
 
 @nb.jit(nopython=True)
 def rotate_vector_safe(vector):
+    vector=vector.astype(np.float64)
     
-    limit = 0.01
+    limit = 0.1
 
     # Define the rotation angles in radians (small amounts)
     angle_x = np.random.uniform(low=-limit,high=limit)
@@ -43,7 +44,7 @@ def rotate_vector_safe(vector):
     ])
 
     rotated_vector = np.dot(rotation_matrix_x, np.dot(rotation_matrix_y, np.dot(rotation_matrix_z, vector)))
-    return rotated_vector
+    return rotated_vector.astype(np.float32)
 
 
 @nb.jit(nopython=True)
@@ -66,7 +67,11 @@ def render_nb(width, height, position, lookat, aspect, fov, up, ambient, objects
         bottom = -top
         left = -right
 
-        w = normalized(cam_dir)
+        if depth:
+            w = normalized(rotate_vector_safe(cam_dir))
+        else:
+            w = normalized(cam_dir)
+
         u = np.cross(up, w)
         u = normalized(u)
         v = np.cross(w, u)
@@ -86,19 +91,10 @@ def render_nb(width, height, position, lookat, aspect, fov, up, ambient, objects
                         u_pix = left + (right - left) * (i + (si + 0.5 + noise_x) / samples) / width
                         v_pix = bottom + (top - bottom) * (j + (sj + 0.5 + noise_y) / samples) / height
 
-                        # TODO: Generate rays
-                        u_pix =  left + (right-left)*(i+0.5)/width
-                        v_pix = bottom + (top-bottom)*(j+0.5)/height
-
                         # we move the ray to the left and right on our "aperature" 
                         s = position+u_pix*u + v_pix*v - d*w
 
-                        ray_dir = s-position
-
-                        if depth:
-                            ray_dir = rotate_vector_safe(ray_dir)
-                            
-                        ray = hc.Ray(position, ray_dir)
+                        ray = hc.Ray(position, s-position)
 
                         # TODO: Test for intersection
                         intersection = hc.defaultIntersection()
