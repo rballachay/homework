@@ -52,14 +52,17 @@ def defaultMaterial():
     ('colour', nb.float32[:]),
     ('vector', nb.float32[:]),
     ('power', nb.types.float64),
+    ('reflectivity', nb.types.float64),
 ])
 class Light:
-    def __init__(self, ltype: str, name: str, colour: nb.float32[:], vector: nb.float32[:], power: float):
+    def __init__(self, ltype: str, name: str, colour: nb.float32[:], 
+                 vector: nb.float32[:], power: float, reflectivity:float):
         self.type = ltype
         self.name = name
         self.colour = colour
         self.vector = vector
         self.power = power
+        self.reflectivity = reflectivity
 
 @nb.experimental.jitclass([
     ('time', nb.types.float64),

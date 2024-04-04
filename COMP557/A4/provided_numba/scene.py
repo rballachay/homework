@@ -27,6 +27,7 @@ class Scene:
                  lights: List[hc.Light],
                  materials: List[hc.Material],
                  objects: list,
+                 depth: bool
                  ):
         self.width = width  # width of image
         self.height = height  # height of image
@@ -41,9 +42,13 @@ class Scene:
         self.lights = lights  # all lights in the scene
         self.materials = materials  # all materials of objects in the scene
         self.objects = objects  # all objects in the scene
+        self.depth = depth
 
     def render(self): 
+        """note that this is returning multiple images that are produced by moving the 
+        camera around to provide a depth of field, so we need to take the average of them
+        """
         image = render_nb(self.width, self.height, np.array(self.position), 
                      np.array(self.lookat), np.array(self.aspect), self.fov, np.array(self.up), 
-                     self.ambient, self.objects, self.lights)            
-        return image
+                     self.ambient, self.objects, self.lights, self.samples, self.jitter, self.depth)            
+        return np.mean(image,axis=-1)

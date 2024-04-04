@@ -60,6 +60,7 @@ def load_scene(infile):
             l_type = light["type"]
             l_name = light["name"]
             l_colour = populateVec(light["colour"])
+            l_reflect = light.get("reflectivity",0)
 
             if l_type == "point":
                 l_vector = populateVec(light["position"])
@@ -68,10 +69,16 @@ def load_scene(infile):
             elif l_type == "directional":
                 l_vector = populateVec(light["direction"])
                 l_power = 1.0
+            elif l_type == "area":
+                # convert area light into a bunch of point lights
+                point_lights = areaLightToPoint(light)
+                for light in point_lights:
+                    lights.append(light)
+                continue
             else:
                 print("Unkown light type", l_type, ", skipping initialization")
                 continue
-            lights.append(hc.Light(l_type, l_name, l_colour, l_vector, l_power))
+            lights.append(hc.Light(l_type, l_name, l_colour, l_vector, l_power, l_reflect))
     except KeyError:
         lights = nb.typed.List()
 
@@ -86,7 +93,12 @@ def load_scene(infile):
 
         # this is in the case we are loading from a material file
         if "file" in material:
-            lookup =  cv2.cvtColor(cv2.resize(cv2.imread(material["file"]),(221,221)),cv2.COLOR_BGR2RGB).astype(np.int64)
+            lookup =  cv2.cvtColor(cv2.resize(cv2.imread(material["file"]),(221,221)),cv2.COLOR_BGR2RGB)
+            
+            # change orange/yellow color to a little bit more gold 
+            #mask=cv2.inRange(lookup,lookup[0,0,:]-1,lookup[0,0,:]+1)
+            #lookup[mask>0]=np.array([212,175,55])
+            lookup = lookup.astype(np.int64)
         else:
             lookup = np.zeros((221,221,3)).astype(np.int64)
 
@@ -97,10 +109,12 @@ def load_scene(infile):
                                    planes=nb.typed.List.empty_list(geom.Plane.class_type.instance_type),
                                    meshes=nb.typed.List.empty_list(geom.Mesh.class_type.instance_type),
                                    boxes=nb.typed.List.empty_list(geom.AABB.class_type.instance_type),
+                                   ellipsoids=nb.typed.List.empty_list(geom.Ellipsoid.class_type.instance_type),
                                    sphereTransforms=nb.typed.List.empty_list(nb.float64[:,:,:]),
                                    planeTransforms=nb.typed.List.empty_list(nb.float64[:,:,:]),
                                    meshTransforms=nb.typed.List.empty_list(nb.float64[:,:,:]),
-                                   boxTransforms=nb.typed.List.empty_list(nb.float64[:,:,:]),)
+                                   boxTransforms=nb.typed.List.empty_list(nb.float64[:,:,:]),
+                                   ellipsoidTransforms=nb.typed.List.empty_list(nb.float64[:,:,:]))
 
     # Extra stuff for hierarchies
     for geometry in data["objects"]:
@@ -134,7 +148,7 @@ def load_scene(infile):
     return scene.Scene(width, height, jitter, samples,  # General settings
                        cam_pos, cam_lookat, cam_up, cam_fov,  # Camera settings
                        ambient, lights,  # Light settings
-                       materials, objects)  # General settings
+                       materials, objects, False)  # General settings
 
 
 def add_basic_shape(g_name: str, g_type: str, g_pos: glm.vec3, g_mats: List[hc.Material], geometry, objects: list, transformation):
@@ -172,6 +186,11 @@ def add_basic_shape(g_name: str, g_type: str, g_pos: glm.vec3, g_mats: List[hc.M
         obj = geom.Mesh(g_name, g_type, g_mats, g_pos, g_scale, verts, norms, faces, t_coords, t_faces)
         objects.meshes.append(obj)
         objects.meshTransforms.append(transformation)
+    elif g_type == "ellipsoid":
+        g_radius = populateVec(geometry["radii"])
+        obj=geom.Ellipsoid(g_name, g_type, g_mats, g_pos, g_radius)
+        objects.ellipsoids.append(obj)
+        objects.ellipsoidTransforms.append(transformation)
     else:
         return False
     return True
@@ -243,3 +262,27 @@ def make_mat(t, r, s):
     scale_matrix[:3, :3] = np.diag(s)
 
     return np.dot(np.dot(translation_matrix, rotation_matrix), scale_matrix)
+
+
+def areaLightToPoint(light):
+    step_width = step_height = light['samples']
+
+    reflectivity = light.get("reflectivity", 0.0)
+
+    sampling_frequency = int(light["shape"][0]/step_height)
+    point_lights = []
+
+    # Iterate over the width and height of the area light
+    for i in range(sampling_frequency):
+        for j in range(sampling_frequency):
+            # Calculate the position of the current point light
+            x = light["position"][0] - light["shape"][0] / 2 + i * step_width
+            y = light["position"][1]
+            z = light["position"][2] - light["shape"][1] / 2 + j * step_height
+
+            point_lights.append(hc.Light(light["type"], light["name"], 
+                                         populateVec(light["colour"]), populateVec([x,y,z]), 
+                                         np.float64(light["power"]/sampling_frequency**2),
+                                         reflectivity))
+
+    return point_lights

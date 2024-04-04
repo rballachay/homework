@@ -44,8 +44,9 @@ class Sphere:
             t1 = (-b + sqrt_discriminant) / (2 * a)
 
             t = np.min(np.array([t0,t1],dtype=np.float32))
-
-            if t>0 and t<intersect.time:
+            
+            # the problem is that t can't be less than intersect.time if intersect.time is still at zero
+            if t>0 and (True if intersect.time==0 else t<intersect.time):
                 intersect.time = np.float32(t)
                 intersect.position = (ray.origin + t * ray.direction).astype(np.float32)
                 intersect.normal =  normalized ((intersect.position - self.center) / self.radius).astype(np.float32)
@@ -259,6 +260,8 @@ class Mesh:
 
         if k>231:
             material=np.array([1.0,1.0,1.0])
+            return hc.Material("egg",np.array([0.5,0.5,0.5]).astype(np.float32),
+                           material.astype(np.float32),5,1,np.zeros((221,221,1)).astype(np.int64))
         else:
             # otherwise, we can use our face number to look up our texture coordinates
             n0, n1, n2 = [self.t_coords[j] for j in self.t_faces[k]]
@@ -266,33 +269,110 @@ class Mesh:
 
             # this is negative for some reason
             material = self.materials[0].lookup[normal[0],normal[1]]/255.0
+            return hc.Material("gude",material.astype(np.float32),
+                           material.astype(np.float32),50,1,np.zeros((221,221,1)).astype(np.int64))
 
-        return hc.Material("texture-surface",np.array([0.7,0.7,0.7]).astype(np.float32),
-                           material.astype(np.float32),15,1,np.zeros((221,221,1)).astype(np.int64))
+@nb.experimental.jitclass([
+    ('name', nb.types.string),
+    ('gtype', nb.types.string),
+    ('materials',nb.types.ListType(hc.Material.class_type.instance_type)),
+    ('center', nb.float32[:]),
+    ('radii', nb.float32[:]),
+])
+class Ellipsoid:
+    def __init__(self, name, gtype, materials, center, radii):
+        self.name = name
+        self.gtype = gtype
+        self.materials = materials
+        self.center = center
+        self.radii = radii
 
+    def intersect(self, ray, intersection, M_in):
+        M = np.eye(4, dtype=np.float32)
+        M[:3, :3] = np.diag(self.radii)
+
+        Minv = np.linalg.inv(M).astype(np.float32)
+
+        # Transform the ray
+        origin_homogeneous = np.append(ray.origin, 1).astype(np.float32)
+        origin_transformed = np.dot(Minv, origin_homogeneous)
+        origin = origin_transformed[:3] / origin_transformed[3]
+
+        direction_homogeneous = np.append(ray.direction, 0).astype(np.float32)
+        direction_transformed = np.dot(Minv, direction_homogeneous)
+        direction = direction_transformed[:3]
+
+        new_ray = hc.Ray(origin.astype(np.float32), direction.astype(np.float64))
+
+        # Check for intersection with the transformed ray
+        did_intersect = self.check_intersect(new_ray, intersection)
+
+        if did_intersect:
+            # Transform intersection properties back to the original coordinate system
+            normal_homogeneous = np.append(intersection.normal, 0)
+            normal_transformed = np.dot(Minv.T.astype(np.float64), normal_homogeneous)
+            intersection.normal = normalized(normal_transformed[:3]).astype(np.float32)
+
+            position_homogeneous = np.append(intersection.position, 1)
+            position_transformed = np.dot(M.astype(np.float64), position_homogeneous)
+            intersection.position = (position_transformed[:3] / position_transformed[3]).astype(np.float32)
+
+    def check_intersect(self, ray: hc.Ray, intersect: hc.Intersection):
+        # note that you cannot assume a unit sphere as we did in class. this 
+        # can be verified by looking at the objects in the scene json, radius isn't always 1
+        # also, make the assumption that we aren't inside of the sphere
+
+        # we have an ellipsoid that we are going to distort by our scaling matrix
+        # first step here is to create our scaling matrix
+        radius = 1.0
+
+        oc = ray.origin - self.center  # Adjusted origin
+        a = np.dot(ray.direction.astype(np.float64), ray.direction.astype(np.float64))
+        b = 2.0 * np.dot(oc.astype(np.float64), ray.direction.astype(np.float64))
+        c = np.dot(oc, oc) - radius ** 2
+        discrim = b ** 2 - 4 * a * c
+
+        if discrim >= 0:
+            sqrt_discriminant = np.sqrt(discrim)
+            t0 = (-b - sqrt_discriminant) / (2 * a)
+            t1 = (-b + sqrt_discriminant) / (2 * a)
+
+            t = np.min(np.array([t0,t1],dtype=np.float32))
+
+            if t>0 and (True if intersect.time==0 else t<intersect.time):
+                intersect.time = np.float32(t)
+                intersect.position = (ray.origin + t * ray.direction).astype(np.float32)
+                intersect.normal =  normalized ((intersect.position - self.center) / radius).astype(np.float32)
+                intersect.mat = self.materials[0]
+            return True
+        return False
     
 @nb.experimental.jitclass([
     ('spheres', nb.types.ListType(Sphere.class_type.instance_type)),
     ('planes', nb.types.ListType(Plane.class_type.instance_type)),
     ('meshes', nb.types.ListType(Mesh.class_type.instance_type)),
     ('boxes', nb.types.ListType(AABB.class_type.instance_type)),
+    ('ellipsoids', nb.types.ListType(Ellipsoid.class_type.instance_type)),
     ('sphereTransforms', nb.types.ListType(nb.float64[:,:,:])),
     ('planeTransforms', nb.types.ListType(nb.float64[:,:,:])),
     ('meshTransforms', nb.types.ListType(nb.float64[:,:,:])),
     ('boxTransforms', nb.types.ListType(nb.float64[:,:,:])),
+    ('ellipsoidTransforms', nb.types.ListType(nb.float64[:,:,:])),
 ]) 
 class ObjectContainer:
-    def __init__(self, spheres, planes, meshes, boxes, 
+    def __init__(self, spheres, planes, meshes, boxes, ellipsoids,
                  sphereTransforms, planeTransforms, meshTransforms,
-                 boxTransforms):
+                 boxTransforms, ellipsoidTransforms):
         self.spheres = spheres
         self.planes = planes
         self.meshes = meshes
         self.boxes = boxes
+        self.ellipsoids = ellipsoids
         self.sphereTransforms = sphereTransforms
         self.planeTransforms = planeTransforms
         self.meshTransforms = meshTransforms
         self.boxTransforms = boxTransforms
+        self.ellipsoidTransforms = ellipsoidTransforms
 
 @nb.jit(nopython=True)
 def normalized(a):
