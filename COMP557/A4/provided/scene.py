@@ -89,9 +89,10 @@ class Scene:
                         ambient = intersection.mat.diffuse * self.ambient 
                         diffuse_factor = glm.vec3(0, 0, 0)
                         blinn_phong = glm.vec3(0, 0, 0)
+                        mirror_reflection = glm.vec3(0,0,0)
 
                         for light in self.lights:
-                            light_vector =  normalized(light.vector - intersection.position)
+                            light_vector =  glm.vec3(normalized(light.vector - intersection.position))
 
                             # TODO: Cast shadow ray
                             shadow_ray = hc.Ray(intersection.position+shadow_epsilon, light_vector)
@@ -103,12 +104,12 @@ class Scene:
                                 if sum(shadow_intersection.position) != 0 and shadow_intersection.time>0:
                                     in_shadow = True
                                     break
-                            
+                                    
                             if not in_shadow:
                                 diffuse_factor+=intersection.mat.diffuse * light.colour * max(0, np.dot(light_vector, intersection.normal)) * light.power
                                 blinn_phong+=blinn_phong_specular_shading(light, intersection, ray.direction, light_vector)
                         
-                        colour += ambient+diffuse_factor+blinn_phong
+                        colour += ambient+diffuse_factor+blinn_phong+mirror_reflection
 
                 colour /= self.samples ** 2
 

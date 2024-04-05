@@ -37,6 +37,11 @@ def load_scene(infile):
         width = 1080
         height = 720
 
+    try:
+        depth = data["depth"]
+    except KeyError:
+        depth = False
+
     # Loading ambient light
     try:
         ambient = populateVec(data["ambient"])
@@ -71,9 +76,7 @@ def load_scene(infile):
                 l_power = 1.0
             elif l_type == "area":
                 # convert area light into a bunch of point lights
-                point_lights = areaLightToPoint(light)
-                for light in point_lights:
-                    lights.append(light)
+                areaLightToPoint(light, lights)
                 continue
             else:
                 print("Unkown light type", l_type, ", skipping initialization")
@@ -93,14 +96,14 @@ def load_scene(infile):
 
         # this is in the case we are loading from a material file
         if "file" in material:
-            lookup =  cv2.cvtColor(cv2.resize(cv2.imread(material["file"]),(221,221)),cv2.COLOR_BGR2RGB)
+            lookup =  cv2.cvtColor(cv2.resize(cv2.imread(material["file"]),(2048,2048)),cv2.COLOR_BGR2RGB)
             
             # change orange/yellow color to a little bit more gold 
             #mask=cv2.inRange(lookup,lookup[0,0,:]-1,lookup[0,0,:]+1)
             #lookup[mask>0]=np.array([212,175,55])
             lookup = lookup.astype(np.int64)
         else:
-            lookup = np.zeros((221,221,3)).astype(np.int64)
+            lookup = np.zeros((2048,2048,3)).astype(np.int64)
 
         materials.append(hc.Material(mat_name, mat_specular, mat_diffuse, mat_hardness, mat_id, lookup))
 
@@ -148,7 +151,7 @@ def load_scene(infile):
     return scene.Scene(width, height, jitter, samples,  # General settings
                        cam_pos, cam_lookat, cam_up, cam_fov,  # Camera settings
                        ambient, lights,  # Light settings
-                       materials, objects, True)  # General settings
+                       materials, objects, depth)  # General settings
 
 
 def add_basic_shape(g_name: str, g_type: str, g_pos: glm.vec3, g_mats: List[hc.Material], geometry, objects: list, transformation):
@@ -264,13 +267,12 @@ def make_mat(t, r, s):
     return np.dot(np.dot(translation_matrix, rotation_matrix), scale_matrix)
 
 
-def areaLightToPoint(light):
+def areaLightToPoint(light, lights):
     step_width = step_height = light['samples']
 
     reflectivity = light.get("reflectivity", 0.0)
 
     sampling_frequency = int(light["shape"][0]/step_height)
-    point_lights = []
 
     # Iterate over the width and height of the area light
     for i in range(sampling_frequency):
@@ -280,9 +282,7 @@ def areaLightToPoint(light):
             y = light["position"][1]
             z = light["position"][2] - light["shape"][1] / 2 + j * step_height
 
-            point_lights.append(hc.Light(light["type"], light["name"], 
+            lights.append(hc.Light(light["type"], light["name"], 
                                          populateVec(light["colour"]), populateVec([x,y,z]), 
-                                         np.float64(light["power"]/sampling_frequency**2),
+                                         np.float64(light["power"]),
                                          reflectivity))
-
-    return point_lights

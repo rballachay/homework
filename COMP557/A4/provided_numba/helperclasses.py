@@ -43,7 +43,7 @@ def defaultMaterial():
     specular = diffuse = nb.float32([0, 0, 0])
     hardness = 1.0
     ID=-1
-    lookup=np.zeros((221,221,3)).astype(np.int64)
+    lookup=np.zeros((2048,2048,3)).astype(np.int64)
     return Material(name, specular, diffuse, hardness, ID, lookup)
 
 @nb.experimental.jitclass([

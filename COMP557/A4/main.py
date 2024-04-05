@@ -1,6 +1,7 @@
 import numpy
 import argparse
 import matplotlib.pyplot as plt
+import timeit
 
 # Ported from C++ by Melissa Katz
 # Adapted from code by Loïc Nassif and Paul Kry
@@ -13,6 +14,8 @@ args = parse.parse_args()
 
 if __name__ == "__main__":
 
+    start = timeit.default_timer()
+
     if args.numba:
         import provided_numba.scene_parser as scene_parser
         full_scene = scene_parser.load_scene(args.infile)
@@ -24,5 +27,8 @@ if __name__ == "__main__":
     image = numpy.rot90(image, k=1, axes=(0, 1))
     plt.axis("off")
     plt.imshow(image)
-    plt.show()
+    #plt.show()
     plt.savefig(args.outfile, bbox_inches='tight')
+
+    stop = timeit.default_timer()
+    print(f'Program run time: {(stop-start):.2f}')  

@@ -224,6 +224,70 @@ class Hierarchy(Geometry):
 
         return global_didintersect
 
+
+class Ellipsoid(Geometry):
+    def __init__(self, name, gtype, materials, center, radii):
+        super().__init__(name, gtype, materials)
+        self.center = center
+        self.radii = radii
+
+    def intersect(self, ray, intersection):
+        M = np.eye(4, dtype=np.float32)
+        M[:3, :3] = np.diag(self.radii)
+
+        Minv = np.linalg.inv(M).astype(np.float32)
+
+        # Transform the ray
+        origin_homogeneous = np.append(ray.origin, 1).astype(np.float32)
+        origin_transformed = np.dot(Minv, origin_homogeneous)
+        origin = origin_transformed[:3] / origin_transformed[3]
+
+        direction_homogeneous = np.append(ray.direction, 0).astype(np.float32)
+        direction_transformed = np.dot(Minv, direction_homogeneous)
+        direction = direction_transformed[:3]
+
+        new_ray = hc.Ray(origin.astype(np.float32), direction.astype(np.float64))
+
+        # Check for intersection with the transformed ray
+        did_intersect = self.check_intersect(new_ray, intersection)
+
+        if did_intersect:
+            # Transform intersection properties back to the original coordinate system
+            normal_homogeneous = np.append(intersection.normal, 0)
+            normal_transformed = np.dot(Minv.T.astype(np.float64), normal_homogeneous)
+            intersection.normal = normalized(normal_transformed[:3]).astype(np.float32).flatten()
+
+            position_homogeneous = np.append(intersection.position, 1)
+            position_transformed = np.dot(M.astype(np.float64), position_homogeneous)
+            intersection.position = (position_transformed[:3] / position_transformed[3]).astype(np.float32)
+
+    def check_intersect(self, ray: hc.Ray, intersect: hc.Intersection):
+        # note that you cannot assume a unit sphere as we did in class. this 
+        # can be verified by looking at the objects in the scene json, radius isn't always 1
+        # also, make the assumption that we aren't inside of the sphere
+
+        oc = ray.origin - self.center  # Adjusted origin
+        a = np.dot(ray.direction.astype(np.float64), ray.direction.astype(np.float64))
+        b = 2.0 * np.dot(oc.astype(np.float64), ray.direction.astype(np.float64))
+        c = np.dot(oc, oc) - 1.0 ** 2
+        discrim = b ** 2 - 4 * a * c
+
+        if discrim >= 0:
+            sqrt_discriminant = np.sqrt(discrim)
+            t0 = (-b - sqrt_discriminant) / (2 * a)
+            t1 = (-b + sqrt_discriminant) / (2 * a)
+
+            t = np.min(np.array([t0,t1],dtype=np.float32))
+            # the problem is that t can't be less than intersect.time if intersect.time is still at zero
+            if t>0 and (True if intersect.time==0 else t<intersect.time):
+                intersect.time = np.float32(t)
+                intersect.position = (ray.origin + t * ray.direction).astype(np.float32)
+                intersect.normal =  normalized ((intersect.position - self.center) / 1.0).astype(np.float32)
+                intersect.mat = self.materials[0]
+                return True
+        return False
+    
+
 def normalized(a, axis=-1, order=2):
     l2 = np.atleast_1d(np.linalg.norm(a, order, axis))
     l2[l2==0] = 1

@@ -54,10 +54,12 @@ def load_scene(infile):
     lights = []
     try:
         for light in data["lights"]:
+
+
             l_type = light["type"]
             l_name = light["name"]
             l_colour = populateVec(light["colour"])
-
+            
             if l_type == "point":
                 l_vector = populateVec(light["position"])
                 l_power = light["power"]
@@ -65,6 +67,9 @@ def load_scene(infile):
             elif l_type == "directional":
                 l_vector = populateVec(light["direction"])
                 l_power = 1.0
+            elif l_type == "area":
+                areaLightToPoint(light,lights)
+                continue
             else:
                 print("Unkown light type", l_type, ", skipping initialization")
                 continue
@@ -161,6 +166,9 @@ def add_basic_shape(g_name: str, g_type: str, g_pos: glm.vec3, g_mats: List[hc.M
         g_path = geometry["filepath"]
         g_scale = geometry["scale"]
         objects.append(geom.Mesh(g_name, g_type, g_mats, g_pos, g_scale, g_path))
+    elif g_type == "ellipsoid":
+        g_radius = geometry["radii"]
+        objects.append(geom.Ellipsoid(g_name, g_type, g_mats, g_pos, g_radius))
     else:
         return False
     return True
@@ -198,3 +206,21 @@ def associate_material(mats: List[hc.Material], ids: List[int]):
             if i == mat.ID:
                 new_list.append(mat)
     return new_list
+
+
+def areaLightToPoint(light, lights):
+    step_width = step_height = light['samples']
+
+    sampling_frequency = int(light["shape"][0]/step_height)
+
+    # Iterate over the width and height of the area light
+    for i in range(sampling_frequency):
+        for j in range(sampling_frequency):
+            # Calculate the position of the current point light
+            x = light["position"][0] - light["shape"][0] / 2 + i * step_width
+            y = light["position"][1]
+            z = light["position"][2] - light["shape"][1] / 2 + j * step_height
+
+            lights.append(hc.Light(light["type"], light["name"], 
+                                         populateVec(light["colour"]), populateVec([x,y,z]), 
+                                         light["power"]))

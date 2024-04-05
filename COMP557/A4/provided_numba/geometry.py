@@ -256,16 +256,16 @@ class Mesh:
         if k>231:
             material=np.array([1.0,1.0,1.0])
             return hc.Material("egg",np.array([0.5,0.5,0.5]).astype(np.float32),
-                           material.astype(np.float32),5,1,np.zeros((221,221,1)).astype(np.int64))
+                           material.astype(np.float32),5,1,np.zeros((2048,2048,1)).astype(np.int64))
         else:
             # otherwise, we can use our face number to look up our texture coordinates
             n0, n1, n2 = [self.t_coords[j] for j in self.t_faces[k]]
-            normal = (((1 - u - v) * n0 + u * n1 + v * n2)*220).astype(np.int64)
+            normal = (((1 - u - v) * n0 + u * n1 + v * n2)*2048).astype(np.int64)
 
             # this is negative for some reason
             material = self.materials[0].lookup[normal[0],normal[1]]/255.0
             return hc.Material("gude",material.astype(np.float32),
-                           material.astype(np.float32),50,1,np.zeros((221,221,1)).astype(np.int64))
+                           material.astype(np.float32),50,1,np.zeros((2048,2048,1)).astype(np.int64))
 
 @nb.experimental.jitclass([
     ('name', nb.types.string),
@@ -305,7 +305,7 @@ class Ellipsoid:
         if did_intersect:
             # Transform intersection properties back to the original coordinate system
             normal_homogeneous = np.append(intersection.normal, 0)
-            normal_transformed = np.dot(Minv.T.astype(np.float64), normal_homogeneous)
+            normal_transformed = np.dot(Minv.T.astype(np.float64), normal_homogeneous).flatten()
             intersection.normal = normalized(normal_transformed[:3]).astype(np.float32)
 
             position_homogeneous = np.append(intersection.position, 1)
@@ -317,14 +317,10 @@ class Ellipsoid:
         # can be verified by looking at the objects in the scene json, radius isn't always 1
         # also, make the assumption that we aren't inside of the sphere
 
-        # we have an ellipsoid that we are going to distort by our scaling matrix
-        # first step here is to create our scaling matrix
-        radius = 1.0
-
         oc = ray.origin - self.center  # Adjusted origin
         a = np.dot(ray.direction.astype(np.float64), ray.direction.astype(np.float64))
         b = 2.0 * np.dot(oc.astype(np.float64), ray.direction.astype(np.float64))
-        c = np.dot(oc, oc) - radius ** 2
+        c = np.dot(oc, oc) - 1.0 ** 2
         discrim = b ** 2 - 4 * a * c
 
         if discrim >= 0:
@@ -333,14 +329,15 @@ class Ellipsoid:
             t1 = (-b + sqrt_discriminant) / (2 * a)
 
             t = np.min(np.array([t0,t1],dtype=np.float32))
-
+            # the problem is that t can't be less than intersect.time if intersect.time is still at zero
             if t>0 and (True if intersect.time==0 else t<intersect.time):
                 intersect.time = np.float32(t)
                 intersect.position = (ray.origin + t * ray.direction).astype(np.float32)
-                intersect.normal =  normalized ((intersect.position - self.center) / radius).astype(np.float32)
+                intersect.normal =  normalized ((intersect.position - self.center) / 1.0).astype(np.float32)
                 intersect.mat = self.materials[0]
-            return True
+                return True
         return False
+
     
 @nb.experimental.jitclass([
     ('spheres', nb.types.ListType(Sphere.class_type.instance_type)),

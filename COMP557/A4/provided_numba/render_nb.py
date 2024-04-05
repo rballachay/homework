@@ -54,13 +54,20 @@ def render_nb(width, height, position, lookat, aspect, fov, up, ambient, objects
     average those images together. This will cause the further objects to move a greater amount, resulting
     in blurred objects 
     """
-    num_images = 4 if depth else 1
+    num_images = 8 if depth else 1
     images_aperture = np.zeros((width,height,3,num_images))
 
     for a in range(num_images):
+        # for depth, we want to rotate the camera position slightly about
+        # the origin, which is our lookat point
+        if depth:
+            camera_position = rotate_vector_safe(position)
+        else:
+            camera_position = position
+
         image = np.zeros((width, height, 3))
 
-        cam_dir = position  - lookat
+        cam_dir = camera_position  - lookat
         d = 1.0
         top = d * math.tan(0.5 * math.pi * fov / 180)
         right = aspect * top
@@ -68,7 +75,7 @@ def render_nb(width, height, position, lookat, aspect, fov, up, ambient, objects
         left = -right
 
         if depth:
-            w = normalized(rotate_vector_safe(cam_dir))
+            w = normalized(cam_dir)
         else:
             w = normalized(cam_dir)
 
@@ -92,9 +99,9 @@ def render_nb(width, height, position, lookat, aspect, fov, up, ambient, objects
                         v_pix = bottom + (top - bottom) * (j + (sj + 0.5 + noise_y) / samples) / height
 
                         # we move the ray to the left and right on our "aperature" 
-                        s = position+u_pix*u + v_pix*v - d*w
+                        s = camera_position+u_pix*u + v_pix*v - d*w
 
-                        ray = hc.Ray(position, s-position)
+                        ray = hc.Ray(camera_position, s-camera_position)
 
                         # TODO: Test for intersection
                         intersection = hc.defaultIntersection()
@@ -116,15 +123,14 @@ def render_nb(width, height, position, lookat, aspect, fov, up, ambient, objects
                         ambient_light = intersection.mat.diffuse * ambient 
                         diffuse_factor = np.array([0, 0, 0], dtype=np.float32)
                         blinn_phong = np.array([0, 0, 0], dtype=np.float32)
-                        mirror_reflection = np.array([0, 0, 0], dtype=np.float32)
 
                         for light in lights:
                             light_vector =  normalized(light.vector - intersection.position)
 
                             # TODO: Cast shadow ray starting from position that is just a little 
                             # bit backwards on the light vector
-                            shadow_ray = hc.Ray((intersection.position+shadow_epsilon).astype(np.float32),
-                                                light_vector.astype(np.float64))
+                            shadow_ray = hc.Ray((intersection.position + shadow_epsilon * light_vector
+                                                 ).astype(np.float32), light_vector.astype(np.float64))
 
                             in_shadow = False
                             for object, transform in zip(objects.planes,objects.planeTransforms):
@@ -172,19 +178,13 @@ def render_nb(width, height, position, lookat, aspect, fov, up, ambient, objects
                                 diffuse_factor = diffuse_factor + intersection.mat.diffuse * light.colour  * _max  * np.float32(light.power)
                                 blinn_phong += blinn_phong_specular_shading(light, intersection, ray.direction, light_vector).astype(np.float32)
 
-                                if light.reflectivity:  
-                                    reflection_vector = normalized(ray.direction.astype(np.float32) - 2.0 * np.dot(ray.direction.astype(np.float32), intersection.normal.astype(np.float32)) * intersection.normal)
-                                    mirror_intensity = np.dot(reflection_vector.astype(np.float32), light_vector.astype(np.float32)) ** np.float32(light.reflectivity)
-                                    mirror_reflection += mirror_intensity * intersection.mat.specular * light.colour * light.power
-                        
-                        colour += ambient_light+diffuse_factor+blinn_phong+mirror_reflection
+                        colour += ambient_light+diffuse_factor+blinn_phong
 
                 colour /= samples ** np.float32(2.0)
 
                 image[i, j, 0] = max(0.0, min(1.0, colour[0]))
                 image[i, j, 1] = max(0.0, min(1.0, colour[1]))
                 image[i, j, 2] = max(0.0, min(1.0, colour[2]))
-
 
         images_aperture[...,a] = image
 
