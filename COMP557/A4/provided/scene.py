@@ -13,7 +13,6 @@ import random
 
 shadow_epsilon = 10**(-6)
 
-
 class Scene:
 
     def __init__(self,
@@ -64,8 +63,8 @@ class Scene:
             for j in range(self.height):
                 colour = glm.vec3(0, 0, 0)
                 # Accumulate samples
-                for si in range(self.samples):
-                    for sj in range(self.samples):
+                for si in range(int(np.sqrt(self.samples))):
+                    for sj in range(int(np.sqrt(self.samples))):
                         if self.jitter:
                             noise_x = random.uniform(0,1/10)
                             noise_y = random.uniform(0,1/10)
@@ -89,7 +88,6 @@ class Scene:
                         ambient = intersection.mat.diffuse * self.ambient 
                         diffuse_factor = glm.vec3(0, 0, 0)
                         blinn_phong = glm.vec3(0, 0, 0)
-                        mirror_reflection = glm.vec3(0,0,0)
 
                         for light in self.lights:
                             light_vector =  glm.vec3(normalized(light.vector - intersection.position))
@@ -109,7 +107,7 @@ class Scene:
                                 diffuse_factor+=intersection.mat.diffuse * light.colour * max(0, np.dot(light_vector, intersection.normal)) * light.power
                                 blinn_phong+=blinn_phong_specular_shading(light, intersection, ray.direction, light_vector)
                         
-                        colour += ambient+diffuse_factor+blinn_phong+mirror_reflection
+                        colour += ambient+diffuse_factor+blinn_phong
 
                 colour /= self.samples ** 2
 

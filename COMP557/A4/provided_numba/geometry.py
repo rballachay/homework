@@ -256,16 +256,16 @@ class Mesh:
         if k>231:
             material=np.array([1.0,1.0,1.0])
             return hc.Material("egg",np.array([0.5,0.5,0.5]).astype(np.float32),
-                           material.astype(np.float32),5,1,np.zeros((2048,2048,1)).astype(np.int64))
+                           material.astype(np.float32),5,1,np.zeros((1,1,1)).astype(np.int64))
         else:
             # otherwise, we can use our face number to look up our texture coordinates
             n0, n1, n2 = [self.t_coords[j] for j in self.t_faces[k]]
-            normal = (((1 - u - v) * n0 + u * n1 + v * n2)*2048).astype(np.int64)
+            normal = (((1 - u - v) * n0 + u * n1 + v * n2)*512).astype(np.int64)
 
             # this is negative for some reason
             material = self.materials[0].lookup[normal[0],normal[1]]/255.0
             return hc.Material("gude",material.astype(np.float32),
-                           material.astype(np.float32),50,1,np.zeros((2048,2048,1)).astype(np.int64))
+                           material.astype(np.float32),50,1,np.zeros((1,1,1)).astype(np.int64))
 
 @nb.experimental.jitclass([
     ('name', nb.types.string),

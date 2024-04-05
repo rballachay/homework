@@ -96,14 +96,14 @@ def load_scene(infile):
 
         # this is in the case we are loading from a material file
         if "file" in material:
-            lookup =  cv2.cvtColor(cv2.resize(cv2.imread(material["file"]),(2048,2048)),cv2.COLOR_BGR2RGB)
+            lookup =  cv2.cvtColor(cv2.resize(cv2.imread(material["file"]),(512,512)),cv2.COLOR_BGR2RGB)
             
             # change orange/yellow color to a little bit more gold 
             #mask=cv2.inRange(lookup,lookup[0,0,:]-1,lookup[0,0,:]+1)
             #lookup[mask>0]=np.array([212,175,55])
             lookup = lookup.astype(np.int64)
         else:
-            lookup = np.zeros((2048,2048,3)).astype(np.int64)
+            lookup = np.zeros((1,1,1)).astype(np.int64)
 
         materials.append(hc.Material(mat_name, mat_specular, mat_diffuse, mat_hardness, mat_id, lookup))
 

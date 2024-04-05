@@ -6,18 +6,18 @@ import random
 
 shadow_epsilon = 10**(-6)
 
-@nb.jit(nopython=True)
+@nb.jit(nopython=True, cache=True)
 def zip(arr1, arr2):
     result = []
     for i in range(min(len(arr1), len(arr2))):
         result.append((arr1[i], arr2[i]))
     return result
 
-@nb.jit(nopython=True)
+@nb.jit(nopython=True, cache=True)
 def rotate_vector_safe(vector):
     vector=vector.astype(np.float64)
     
-    limit = 0.1
+    limit = 0.01
 
     # Define the rotation angles in radians (small amounts)
     angle_x = np.random.uniform(low=-limit,high=limit)
@@ -74,11 +74,7 @@ def render_nb(width, height, position, lookat, aspect, fov, up, ambient, objects
         bottom = -top
         left = -right
 
-        if depth:
-            w = normalized(cam_dir)
-        else:
-            w = normalized(cam_dir)
-
+        w = normalized(cam_dir)
         u = np.cross(up, w)
         u = normalized(u)
         v = np.cross(w, u)
@@ -87,11 +83,11 @@ def render_nb(width, height, position, lookat, aspect, fov, up, ambient, objects
             for j in range(height):
                 colour = np.array([0, 0, 0]).astype(np.float32)
 
-                for si in range(samples):
-                    for sj in range(samples):
+                for si in range(int(np.sqrt(samples))):
+                    for sj in range(int(np.sqrt(samples))):
                         if jitter:
-                            noise_x = random.uniform(0,1/10)
-                            noise_y = random.uniform(0,1/10)
+                            noise_x = random.uniform(0,0.1)
+                            noise_y = random.uniform(0,0.1)
                         else:
                             noise_x = noise_y = 0
 
@@ -180,7 +176,7 @@ def render_nb(width, height, position, lookat, aspect, fov, up, ambient, objects
 
                         colour += ambient_light+diffuse_factor+blinn_phong
 
-                colour /= samples ** np.float32(2.0)
+                colour /= int(np.sqrt(samples)) ** 2.0
 
                 image[i, j, 0] = max(0.0, min(1.0, colour[0]))
                 image[i, j, 1] = max(0.0, min(1.0, colour[1]))
@@ -190,12 +186,12 @@ def render_nb(width, height, position, lookat, aspect, fov, up, ambient, objects
 
     return images_aperture
 
-@nb.jit(nopython=True)
+@nb.jit(nopython=True, cache=True)
 def blinn_phong_specular_shading(light, intersection, viewer_direction, light_vector):
     halfway_vector = normalized(light_vector + (-viewer_direction))
     specular_factor = np.max(np.array([0.0, np.dot(intersection.normal.astype(np.float32), halfway_vector.astype(np.float32))],dtype=np.float32)) ** intersection.mat.hardness
     return intersection.mat.specular * light.colour * specular_factor * light.power
 
-@nb.jit(nopython=True)
+@nb.jit(nopython=True, cache=True)
 def normalized(a):
     return a / np.sqrt(np.sum(a**2))

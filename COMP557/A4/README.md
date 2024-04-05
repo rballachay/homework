@@ -1,5 +1,40 @@
 # COMP557 Assignment 4
 
+## Sphere
+
+<img src="results/sphere.png" alt="part_a_response" width="300"/>
+
+## Plane
+
+<img src="results/plane.png" alt="part_a_response" width="400"/>
+
+## Plane 2
+
+<img src="results/plane_2.png" alt="part_a_response" width="400"/>
+
+## Shadow Rays
+
+<img src="results/shadow_rays.png" alt="part_a_response" width="400"/>
+
+## Box
+
+<img src="results/box_rgb.png" alt="part_a_response" width="400"/>
+
+## Hierarchy Intersection
+
+<img src="results/numba_boxstacks.png" alt="part_a_response" width="400"/>
+
+## Torus mesh
+
+Note that the torus mesh was changed a bit so that normals were interpolated accross the faces.
+
+<img src="results/torus_mesh.png" alt="part_a_response" width="400"/>
+
+## Anti-aliasing
+
+The best number for samples was 16, which produces a nice grid of 4x4 rays as I used uniform ray sampling inside of the grid. See below the results:
+
+<img src="results/anti_aliasing.png" alt="part_a_response" width="400"/>
 
 ## Unique Scene 
 
@@ -25,17 +60,17 @@ To demonstrate the mirror, a few point lights of different color are shone onto 
 python3 main.py --infile scenes/MirrorPlane.json --outfile results/green_mirror.png
 ```
 
-<img src="results/green_mirror.png" alt="part_a_response" width="300"/>
+<img src="results/green_mirror.png" alt="part_a_response" width="400"/>
 
 ## Parallelization (2 marks)
 
-In order to 'parallelize' the code, I chose numba just in time complitation. This required a bunch of changes, including moving all glm to numpy, marking the types of all variables in the numba scope and changing the circular dependencies inside the Hierarchy into a 'flattened-tree'. This code can be found in the `provided_numba` folder. Here is how the list of objects was passed into the render function for rendering. To run an example, try the following. See below a code snippet of numba and the stack of boxes produced by the numba code.
+In order to 'parallelize' the code, I chose numba just in time complitation. This required a bunch of changes, including moving all glm to numpy, marking the types of all variables in the numba scope and changing the circular dependencies inside the Hierarchy into a 'flattened-tree'. This code can be found in the `provided_numba` folder. Here is how the list of objects was passed into the render function for rendering. To run an example, try the following. See below a code snippet of numba and the stack of boxes produced by the numba code. 
 
 ```
 python3 main.py --infile scenes/BoxStacks.json --outfile results/numba_boxstacks.png --numba
 ```
 
-<img src="results/numbda_boxstacks.png" alt="part_a_response" width="300"/>
+<img src="results/numba_boxstacks.png" alt="part_a_response" width="400"/>
 
 Example of class holding all the different objects, used instead of a list, as numba doesn't allow mixed types in a list.
 ```python
@@ -52,6 +87,7 @@ class ObjectContainer:
         self.planes = planes
 ```
 
+
 ## Depth of field/Focus Blur (1 marks)
 
 To implement this, a series of images were taken from a camera position slightly rotated around the lookat point. This works like an aperature, collecting light from slightly different positions in the projection plane, creating the effect of depth blur. To run this sample, you may run:
@@ -60,7 +96,7 @@ To implement this, a series of images were taken from a camera position slightly
 python3 main.py --infile scenes/TwoSpheresDepth.json --outfile results/depth_spheres.png --numba
 ```
 
-<img src="results/results/depth_spheres.png" alt="part_a_response" width="300"/>
+<img src="results/depth_spheres.png" alt="part_a_response" width="500"/>
 
 ## Textured mapped surfaces (1 mark)
 
@@ -71,3 +107,10 @@ For my unique scene, I wanted to use a custom mesh downloaded from the internet 
 3. Exported the mesh into simplified form
 
 See below the results of my texture-mapped surface, which is also my novel scene. This is gudetama, the lazy egg, surrounded by eggs. The texture is loaded from `textures/gudetama-diffuse.png`
+
+```
+python3 main.py --infile scenes/LazyEgg.json --outfile results/gudetama.png --numba
+```
+
+
+<img src="results/gudetama.png" alt="part_a_response" width="500"/>
